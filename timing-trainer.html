@@ -64,6 +64,9 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .hit-dir { font-family:'JetBrains Mono',monospace; font-size:8px; font-weight:600; opacity:0; transition:opacity 0.12s; }
 .hit-dir.show { opacity:1; }
 .cg { color:var(--green); } .cr { color:var(--red); } .cb { color:var(--blue); }
+.beat-col.hit-green { background:var(--green-bg); transition:background 0.05s; }
+.beat-col.hit-red { background:var(--red-bg); transition:background 0.05s; }
+.beat-col.hit-blue { background:var(--blue-bg); transition:background 0.05s; }
 
 /* Bar lines */
 .bar-line { width:2px; height:52px; background:var(--text-dim); margin:0 4px; align-self:center; flex-shrink:0; }
@@ -166,30 +169,21 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .rand-ok { padding:10px 24px; background:var(--accent); color:var(--bg); border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; border:none; }
 .rand-cancel { padding:10px 24px; background:var(--surface2); color:var(--text-dim); border:1px solid var(--border); border-radius:8px; font-size:13px; cursor:pointer; }
 
-/* Summary */
-.sum-ov { position:fixed; inset:0; background:rgba(0,0,0,0.92); z-index:100; display:none; flex-direction:column; align-items:center; justify-content:flex-start; padding:40px 24px; overflow-y:auto; }
-.sum-ov.show { display:flex; }
-.sum-title { font-size:20px; font-weight:600; margin-bottom:20px; }
-.sum-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; width:100%; max-width:360px; margin-bottom:20px; }
-.sum-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px; text-align:center; }
-.sum-val { font-family:'JetBrains Mono',monospace; font-size:24px; font-weight:700; }
-.sum-lbl { font-size:11px; color:var(--text-dim); margin-top:4px; }
-.sum-tend { font-size:14px; margin-bottom:16px; text-align:center; padding:10px 16px; border-radius:8px; width:100%; max-width:360px; }
-.sum-close { padding:12px 32px; background:var(--accent); color:var(--bg); border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; border:none; margin-top:12px; }
-.sum-hist { width:100%; max-width:360px; margin-bottom:16px; }
-.h-row { display:flex; align-items:center; gap:6px; margin-bottom:3px; }
-.h-lbl { font-family:'JetBrains Mono',monospace; font-size:9px; color:var(--text-dim); width:48px; text-align:right; }
-.h-wrap { flex:1; height:14px; background:var(--surface2); border-radius:3px; overflow:hidden; }
-.h-bar { height:100%; border-radius:3px; }
-
-/* Per-note feedback */
-.pn-section { width:100%; max-width:400px; margin-bottom:16px; }
-.pn-title { font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:1px; color:var(--text-dim); margin-bottom:10px; }
-.pn-row { display:flex; align-items:flex-start; gap:6px; margin-bottom:8px; }
-.pn-label { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--text-dim); width:18px; text-align:center; padding-top:10px; }
-.pn-notes { display:flex; gap:3px; flex-wrap:wrap; }
-.pn-note { display:flex; flex-direction:column; align-items:center; gap:1px; padding:2px 4px; border-radius:4px; }
-.pn-stat { font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:600; min-height:12px; }
+/* Inline result strip */
+.result-strip { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:12px 16px; margin-bottom:12px; }
+.result-tend { font-size:13px; font-weight:600; display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+.result-stats { display:flex; gap:10px; flex-wrap:wrap; }
+.result-stat { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-dim); }
+.result-stat span { color:var(--text); font-weight:600; }
+.result-clear { font-size:11px; padding:4px 10px; background:var(--surface); border:1px solid var(--border); border-radius:4px; color:var(--text-dim); cursor:pointer; }
+.result-clear:active { background:var(--border); }
+.result-hist { margin-top:10px; }
+.rh-row { display:flex; align-items:center; gap:6px; margin-bottom:2px; }
+.rh-lbl { font-family:'JetBrains Mono',monospace; font-size:8px; color:var(--text-dim); width:50px; text-align:right; }
+.rh-wrap { flex:1; height:10px; background:var(--surface); border-radius:2px; overflow:hidden; }
+.rh-bar { height:100%; border-radius:2px; }
+.rh-cnt { font-family:'JetBrains Mono',monospace; font-size:8px; color:var(--text-dim); width:20px; }
+.cal-hint { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--text-dim); margin-top:8px; }
 
 .status { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-dim); text-align:center; padding:8px 0; }
 .s-dot { display:inline-block; width:6px; height:6px; border-radius:50%; margin-right:4px; vertical-align:middle; }
@@ -228,6 +222,7 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
         <div class="pat-btn" onclick="showRandPopup()">&#127922; Random</div>
       </div>
     </div>
+    <div id="resultStrip" style="display:none"></div>
     <div id="patContainer"></div>
   </div>
   <div class="section">
@@ -320,12 +315,7 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
   </div>
 </div>
 
-<!-- Summary Overlay -->
-<div class="sum-ov" id="sumOv">
-  <div class="sum-title">Session Summary</div>
-  <div id="sumC"></div>
-  <button class="sum-close" onclick="closeSum()">Close</button>
-</div>
+<!-- Summary overlay removed — results now show inline -->
 
 <script>
 /* ═══════════════════════════════════════════
@@ -981,6 +971,7 @@ function playCountClick(t) {
 function startMetro() {
   isPlaying = true; sessH = []; sBeats = []; curSub = 0; lastHit = 0;
   clearMarkers();
+  clearResults();
   var sched = buildSched();
   if (!sched.length) return;
   var totalTicks = measures.length * measCap();
@@ -1024,7 +1015,8 @@ function startMetro() {
   var countDelay = (loopStart - audioCtx.currentTime) * 1000;
   setTimeout(function() {
     if (!isPlaying) return;
-    statusEl.innerHTML = '<span class="s-dot on"></span>Playing';
+    var calInfo = latMs !== 0 ? ' (cal: '+latMs+'ms)' : '';
+    statusEl.innerHTML = '<span class="s-dot on"></span>Playing' + calInfo;
     startHitDet();
   }, Math.max(0, countDelay));
 
@@ -1076,7 +1068,7 @@ function stopMetro() {
   document.getElementById('status').innerHTML = '<span class="s-dot on"></span>Mic active';
   if (sessH.length > 0) {
     showInlineTendencies();
-    showSum();
+    showResultStrip();
   }
 }
 
@@ -1154,18 +1146,11 @@ function procHit(ht) {
 }
 
 function renderHit(mi, ni, off) {
-  var ab = Math.abs(off), col, dir;
-  if (ab <= 10) { col = 'cg'; dir = '\u25CF'; }
-  else if (off < 0) { col = 'cr'; dir = '\u2190 early'; }
-  else { col = 'cb'; dir = 'late \u2192'; }
-  var me = document.getElementById('hm'+mi+'_'+ni);
-  var de = document.getElementById('hd'+mi+'_'+ni);
-  if (me) { me.textContent = (off > 0 ? '+' : '') + off + 'ms'; me.className = 'hit-ms show ' + col; }
-  if (de) { de.textContent = dir; de.className = 'hit-dir show ' + col; }
-  setTimeout(function() {
-    if (me) me.classList.remove('show');
-    if (de) de.classList.remove('show');
-  }, 1500);
+  var el = document.querySelector('.beat-col[data-measure="'+mi+'"][data-note="'+ni+'"]');
+  if (!el) return;
+  var cls = Math.abs(off) <= 15 ? 'hit-green' : (off < 0 ? 'hit-red' : 'hit-blue');
+  el.classList.add(cls);
+  setTimeout(function() { el.classList.remove(cls); }, 200);
 }
 
 function clearMarkers() {
@@ -1322,97 +1307,57 @@ function closeCalib() {
 }
 
 /* ═══════════════════════════════════════════
-   SESSION SUMMARY WITH PER-NOTE FEEDBACK
+   INLINE RESULTS (replaces overlay)
    ═══════════════════════════════════════════ */
-function showSum() {
+function showResultStrip() {
   var offs = sessH.map(function(h){return h.offset;});
   var avg = offs.reduce(function(a,b){return a+b;},0) / offs.length;
   var absAvg = offs.reduce(function(a,b){return a+Math.abs(b);},0) / offs.length;
   var sd = Math.sqrt(offs.reduce(function(a,b){return a+(b-avg)*(b-avg);},0) / offs.length);
-  var eN = offs.filter(function(o){return o < -10;}).length;
-  var lN = offs.filter(function(o){return o > 10;}).length;
-  var oN = offs.filter(function(o){return Math.abs(o) <= 10;}).length;
-  var eP = Math.round(eN / offs.length * 100);
-  var lP = Math.round(lN / offs.length * 100);
+  var oN = offs.filter(function(o){return Math.abs(o) <= 15;}).length;
   var oP = Math.round(oN / offs.length * 100);
 
-  var tend, tbg;
-  if (Math.abs(avg) <= 5) { tend = 'Excellent timing \u2014 centered'; tbg = 'background:var(--green-bg);color:var(--green)'; }
-  else if (avg < -5) { tend = 'Rushing (early ~' + Math.abs(Math.round(avg)) + 'ms)'; tbg = 'background:var(--red-bg);color:var(--red)'; }
-  else { tend = 'Dragging (late ~' + Math.round(avg) + 'ms)'; tbg = 'background:var(--blue-bg);color:var(--blue)'; }
+  var tend, tstyle;
+  if (Math.abs(avg) <= 5) { tend = 'Excellent \u2014 centered'; tstyle = 'color:var(--green)'; }
+  else if (avg < -5) { tend = 'Rushing ~' + Math.abs(Math.round(avg)) + 'ms early'; tstyle = 'color:var(--red)'; }
+  else { tend = 'Dragging ~' + Math.round(avg) + 'ms late'; tstyle = 'color:var(--blue)'; }
 
-  // Histogram bins
-  var bins = [{l:'< -30ms',mn:-Infinity,mx:-30,c:'var(--red)'},{l:'-30 to -10',mn:-30,mx:-10,c:'#f87171'},{l:'-10 to +10',mn:-10,mx:10,c:'var(--green)'},{l:'+10 to +30',mn:10,mx:30,c:'#60a5fa'},{l:'> +30ms',mn:30,mx:Infinity,c:'var(--blue)'}];
+  // Histogram
+  var bins = [{l:'<-30',mn:-Infinity,mx:-30,c:'var(--red)'},{l:'-30..-10',mn:-30,mx:-10,c:'#f87171'},{l:'\u00b110',mn:-10,mx:10,c:'var(--green)'},{l:'+10..+30',mn:10,mx:30,c:'#60a5fa'},{l:'>+30',mn:30,mx:Infinity,c:'var(--blue)'}];
   var bc = bins.map(function(b){return offs.filter(function(o){return o>=b.mn&&o<b.mx;}).length;});
   bc[bc.length-1] = offs.filter(function(o){return o>=30;}).length;
   var mx = Math.max.apply(null, bc.concat([1]));
 
-  var histHtml = '<div class="sum-hist">';
+  var histHtml = '<div class="result-hist">';
   bins.forEach(function(b,i){
-    histHtml += '<div class="h-row"><div class="h-lbl">'+b.l+'</div><div class="h-wrap"><div class="h-bar" style="width:'+(bc[i]/mx*100)+'%;background:'+b.c+'"></div></div><div class="h-lbl">'+bc[i]+'</div></div>';
+    histHtml += '<div class="rh-row"><div class="rh-lbl">'+b.l+'</div><div class="rh-wrap"><div class="rh-bar" style="width:'+(bc[i]/mx*100)+'%;background:'+b.c+'"></div></div><div class="rh-cnt">'+bc[i]+'</div></div>';
   });
   histHtml += '</div>';
 
-  // Per-note feedback
-  var pnHtml = renderPerNote();
+  var calNote = '';
+  if (latMs === 0) {
+    calNote = '<div class="cal-hint">\u26A0 No calibration \u2014 results may be offset. <span style="text-decoration:underline;cursor:pointer" onclick="startCalib()">Calibrate</span></div>';
+  }
 
-  document.getElementById('sumC').innerHTML =
-    '<div class="sum-tend" style="'+tbg+'">'+tend+'</div>' +
-    '<div class="sum-grid">' +
-    '<div class="sum-card"><div class="sum-val">'+Math.round(avg)+'ms</div><div class="sum-lbl">Mean Offset</div></div>' +
-    '<div class="sum-card"><div class="sum-val">'+Math.round(absAvg)+'ms</div><div class="sum-lbl">Mean |Offset|</div></div>' +
-    '<div class="sum-card"><div class="sum-val">\u00b1'+Math.round(sd)+'ms</div><div class="sum-lbl">Std Dev</div></div>' +
-    '<div class="sum-card"><div class="sum-val">'+sessH.length+'</div><div class="sum-lbl">Total Hits</div></div>' +
-    '<div class="sum-card"><div class="sum-val" style="color:var(--green)">'+oP+'%</div><div class="sum-lbl">On Time</div></div>' +
-    '<div class="sum-card"><div class="sum-val" style="color:var(--red)">'+eP+'%</div><div class="sum-lbl">Early</div></div>' +
-    '</div>' + pnHtml + histHtml;
-  document.getElementById('sumOv').classList.add('show');
+  var strip = document.getElementById('resultStrip');
+  strip.innerHTML =
+    '<div class="result-strip">' +
+    '<div class="result-tend"><span style="'+tstyle+'">'+tend+'</span><div class="result-clear" onclick="clearResults()">Clear</div></div>' +
+    '<div class="result-stats">' +
+    '<div class="result-stat">avg <span>'+Math.round(avg)+'ms</span></div>' +
+    '<div class="result-stat">|avg| <span>'+Math.round(absAvg)+'ms</span></div>' +
+    '<div class="result-stat">\u03C3 <span>\u00b1'+Math.round(sd)+'ms</span></div>' +
+    '<div class="result-stat">hits <span>'+sessH.length+'</span></div>' +
+    '<div class="result-stat">on-time <span style="color:var(--green)">'+oP+'%</span></div>' +
+    '</div>' + histHtml + calNote + '</div>';
+  strip.style.display = 'block';
 }
 
-function renderPerNote() {
-  // Group hits by mi_ni
-  var stats = {};
-  sessH.forEach(function(h) {
-    var key = h.mi + '_' + h.ni;
-    if (!stats[key]) stats[key] = {offsets:[], mi:h.mi, ni:h.ni};
-    stats[key].offsets.push(h.offset);
-  });
-  Object.keys(stats).forEach(function(k) {
-    var s = stats[k];
-    s.avg = s.offsets.reduce(function(a,b){return a+b;},0) / s.offsets.length;
-    s.count = s.offsets.length;
-  });
-
-  var html = '<div class="pn-section"><div class="pn-title">Per-Note Tendencies</div>';
-  measures.forEach(function(measure, mi) {
-    html += '<div class="pn-row"><div class="pn-label">'+(mi+1)+'</div><div class="pn-notes">';
-    measure.forEach(function(note, ni) {
-      var key = mi + '_' + ni;
-      var s = stats[key];
-      var isRest = NT[note.t].rest;
-      var color, label;
-      if (!s || isRest) {
-        color = '#555';
-        label = isRest ? '' : '\u2014';
-      } else if (Math.abs(s.avg) <= 5) {
-        color = 'var(--green)';
-        label = '\u25CF';
-      } else if (s.avg < -5) {
-        color = 'var(--red)';
-        label = Math.round(s.avg)+'ms';
-      } else {
-        color = 'var(--blue)';
-        label = '+'+Math.round(s.avg)+'ms';
-      }
-      html += '<div class="pn-note">' + svgN(note.t, 24, 32, color) + '<div class="pn-stat" style="color:'+color+'">'+label+'</div></div>';
-    });
-    html += '</div></div>';
-  });
-  html += '</div>';
-  return html;
+function clearResults() {
+  document.getElementById('resultStrip').style.display = 'none';
+  document.getElementById('resultStrip').innerHTML = '';
+  clearMarkers();
 }
-
-function closeSum() { document.getElementById('sumOv').classList.remove('show'); }
 
 /* ═══════════════════════════════════════════
    BOOT
