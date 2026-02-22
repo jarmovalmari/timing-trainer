@@ -58,15 +58,12 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .beat-col:active .note-sym svg { transform:scale(0.9); }
 .beat-col.active .note-sym svg { transform:scale(1.08); }
 .note-label { font-family:'JetBrains Mono',monospace; font-size:8px; color:var(--text-dim); }
-.hit-marker { min-height:30px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0; }
-.hit-ms { font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700; line-height:1.2; opacity:0; transition:opacity 0.12s; }
-.hit-ms.show { opacity:1; }
-.hit-dir { font-family:'JetBrains Mono',monospace; font-size:8px; font-weight:600; opacity:0; transition:opacity 0.12s; }
-.hit-dir.show { opacity:1; }
+.hit-marker { height:18px; position:relative; width:100%; margin-top:2px; }
+.hit-track { position:absolute; top:8px; left:4px; right:4px; height:1px; background:var(--border); }
+.hit-center { position:absolute; top:5px; left:50%; width:1px; height:7px; background:var(--border); transform:translateX(-0.5px); }
+.hit-dot { position:absolute; top:4px; left:50%; width:8px; height:8px; border-radius:50%; transform:translateX(-4px); transition:left 0.1s, background 0.1s; display:none; }
+.hit-dot.show { display:block; }
 .cg { color:var(--green); } .cr { color:var(--red); } .cb { color:var(--blue); }
-.beat-col.hit-green { background:var(--green-bg); transition:background 0.05s; }
-.beat-col.hit-red { background:var(--red-bg); transition:background 0.05s; }
-.beat-col.hit-blue { background:var(--blue-bg); transition:background 0.05s; }
 
 /* Bar lines */
 .bar-line { width:2px; height:52px; background:var(--text-dim); margin:0 4px; align-self:center; flex-shrink:0; }
@@ -612,7 +609,7 @@ function renderPat() {
 
       var mk = document.createElement('div');
       mk.className = 'hit-marker';
-      mk.innerHTML = '<div class="hit-ms" id="hm'+mi+'_'+ni+'"></div><div class="hit-dir" id="hd'+mi+'_'+ni+'"></div>';
+      mk.innerHTML = '<div class="hit-track"></div><div class="hit-center"></div><div class="hit-dot" id="hd'+mi+'_'+ni+'"></div>';
       col.appendChild(mk);
 
       col.onclick = (function(m, n) { return function(ev) { ev.stopPropagation(); openNotePicker(m, n); }; })(mi, ni);
@@ -1073,7 +1070,7 @@ function stopMetro() {
 }
 
 function showInlineTendencies() {
-  // Compute per-note averages and show them in the hit-marker area
+  // Compute per-note averages and show them using the position dot
   var stats = {};
   sessH.forEach(function(h) {
     var key = h.mi + '_' + h.ni;
@@ -1084,30 +1081,17 @@ function showInlineTendencies() {
   measures.forEach(function(measure, mi) {
     measure.forEach(function(note, ni) {
       var key = mi + '_' + ni;
-      var me = document.getElementById('hm'+mi+'_'+ni);
-      var de = document.getElementById('hd'+mi+'_'+ni);
-      if (!me || !de) return;
+      var dot = document.getElementById('hd'+mi+'_'+ni);
+      if (!dot) return;
 
       var isRest = NT[note.t].rest;
       if (isRest) return;
 
       var hits = stats[key];
-      if (!hits || !hits.length) {
-        me.textContent = '\u2014'; me.className = 'hit-ms show'; me.style.color = 'var(--text-dim)';
-        de.textContent = 'no hits'; de.className = 'hit-dir show'; de.style.color = 'var(--text-dim)';
-        return;
-      }
+      if (!hits || !hits.length) return;
 
       var avg = hits.reduce(function(a,b){return a+b;},0) / hits.length;
-      var col, dir;
-      if (Math.abs(avg) <= 5) { col = 'cg'; dir = '\u25CF on time'; }
-      else if (avg < 0) { col = 'cr'; dir = '\u2190 early'; }
-      else { col = 'cb'; dir = 'late \u2192'; }
-
-      me.textContent = (avg > 0 ? '+' : '') + Math.round(avg) + 'ms';
-      me.className = 'hit-ms show ' + col;
-      de.textContent = dir + ' (' + hits.length + ')';
-      de.className = 'hit-dir show ' + col;
+      renderHit(mi, ni, Math.round(avg));
     });
   });
 }
@@ -1146,17 +1130,22 @@ function procHit(ht) {
 }
 
 function renderHit(mi, ni, off) {
-  var el = document.querySelector('.beat-col[data-measure="'+mi+'"][data-note="'+ni+'"]');
-  if (!el) return;
-  var cls = Math.abs(off) <= 15 ? 'hit-green' : (off < 0 ? 'hit-red' : 'hit-blue');
-  el.classList.add(cls);
-  setTimeout(function() { el.classList.remove(cls); }, 200);
+  var dot = document.getElementById('hd'+mi+'_'+ni);
+  if (!dot) return;
+  // Clamp offset to ±50ms for display, map to 0-100% position
+  var clamped = Math.max(-50, Math.min(50, off));
+  var pct = 50 + (clamped / 50) * 45; // 5% to 95% range, 50% = center
+  var color = Math.abs(off) <= 10 ? 'var(--green)' : (off < 0 ? 'var(--red)' : 'var(--blue)');
+  dot.style.left = pct + '%';
+  dot.style.background = color;
+  dot.classList.add('show');
 }
 
 function clearMarkers() {
-  document.querySelectorAll('.hit-ms, .hit-dir').forEach(function(el) {
-    el.className = el.className.replace(/show|cg|cr|cb/g, '').trim(); el.textContent = '';
-    el.style.color = '';
+  document.querySelectorAll('.hit-dot').forEach(function(el) {
+    el.classList.remove('show');
+    el.style.left = '50%';
+    el.style.background = '';
   });
 }
 
