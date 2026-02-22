@@ -46,8 +46,8 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .pat-btn { font-size:10px; font-weight:500; padding:3px 8px; background:var(--surface2); border:1px solid var(--border); border-radius:4px; color:var(--text-dim); cursor:pointer; text-transform:none; letter-spacing:0; }
 .pat-btn:active { background:var(--border); }
 #patContainer { overflow-x:auto; overflow-y:visible; }
-.measure-row { display:flex; align-items:flex-start; gap:6px; margin-bottom:10px; padding-bottom:10px; border-bottom:1px solid var(--border); }
-.measure-row:last-child { border-bottom:none; margin-bottom:0; padding-bottom:0; }
+.measure-row { display:flex; align-items:flex-start; gap:6px; margin-bottom:10px; padding-bottom:10px; }
+.measure-row:last-child { margin-bottom:0; padding-bottom:0; }
 .measure-label { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--text-dim); width:18px; min-width:18px; text-align:center; padding-top:14px; }
 .pattern-bar { display:flex; align-items:flex-start; gap:0; flex-wrap:wrap; flex:1; }
 .beat-col { display:flex; flex-direction:column; align-items:center; gap:1px; padding:4px 2px; border-radius:6px; transition:background 0.1s; cursor:pointer; position:relative; }
@@ -65,8 +65,18 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .hit-dir.show { opacity:1; }
 .cg { color:var(--green); } .cr { color:var(--red); } .cb { color:var(--blue); }
 
-/* Triplet bracket */
-.triplet-bracket { position:absolute; top:-10px; left:0; right:0; height:10px; pointer-events:none; }
+/* Bar lines */
+.bar-line { width:2px; height:52px; background:var(--text-dim); margin:0 4px; align-self:center; flex-shrink:0; }
+.bar-line-double { display:flex; gap:3px; align-self:center; flex-shrink:0; margin:0 4px; }
+.bar-line-double .bl-thin { width:1.5px; height:52px; background:var(--text-dim); }
+.bar-line-double .bl-thick { width:4px; height:52px; background:var(--text-dim); border-radius:1px; }
+
+/* Triplet group */
+.triplet-group { display:flex; align-items:flex-start; position:relative; padding-top:16px; }
+.triplet-bracket { position:absolute; top:0; left:4px; right:4px; height:14px; pointer-events:none; display:flex; align-items:flex-end; }
+.triplet-bracket::before { content:''; flex:1; height:8px; border-left:1.5px solid var(--text-dim); border-top:1.5px solid var(--text-dim); }
+.triplet-bracket::after { content:''; flex:1; height:8px; border-right:1.5px solid var(--text-dim); border-top:1.5px solid var(--text-dim); }
+.triplet-num { font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:700; color:var(--text-dim); padding:0 2px; line-height:1; align-self:flex-start; }
 
 /* Mode */
 .mode-toggle { display:flex; background:var(--surface2); border-radius:8px; border:1px solid var(--border); overflow:hidden; }
@@ -382,17 +392,15 @@ function svgN(type, w, h, fillOverride) {
       svg += '<path d="M18 14 C22 16 24 20 20 23" stroke="'+c+'" stroke-width="1.5" fill="none" stroke-linecap="round"/>';
       break;
 
-    /* ── Triplet notes — same as base but with "3" marker ── */
-    case 'qt': // quarter triplet
+    /* ── Triplet notes — rendered as normal notes (bracket added in renderPat) ── */
+    case 'qt': // quarter triplet — same as quarter note
       svg += '<ellipse cx="12" cy="28" rx="6.5" ry="4.5" fill="'+c+'" transform="rotate(-15 12 28)"/>';
       svg += '<line x1="18" y1="26" x2="18" y2="6" stroke="'+c+'" stroke-width="1.8"/>';
-      svg += '<text x="24" y="10" font-family="JetBrains Mono,monospace" font-size="9" font-weight="700" fill="'+c+'">3</text>';
       break;
-    case 'et': // eighth triplet
+    case 'et': // eighth triplet — same as eighth note
       svg += '<ellipse cx="12" cy="28" rx="6.5" ry="4.5" fill="'+c+'" transform="rotate(-15 12 28)"/>';
       svg += '<line x1="18" y1="26" x2="18" y2="6" stroke="'+c+'" stroke-width="1.8"/>';
       svg += '<path d="M18 6 C22 8 24 14 20 18" stroke="'+c+'" stroke-width="1.8" fill="none" stroke-linecap="round"/>';
-      svg += '<text x="24" y="10" font-family="JetBrains Mono,monospace" font-size="9" font-weight="700" fill="'+c+'">3</text>';
       break;
 
     /* ── Rests ── */
@@ -448,7 +456,7 @@ var sessH = [];
 var npMi = -1, npNi = -1;
 // Calibration
 var cSt = 'idle', cClk = [], cHit = [], cSch = null, cMP = null;
-var cNxt = 0, cLH = 0, cDet = 0, cBpm = 90;
+var cNxt = 0, cLH = 0, cDet = 0, cBpm = 120;
 
 /* ═══════════════════════════════════════════
    MEASURE HELPERS
@@ -572,26 +580,25 @@ function renderPat() {
     label.className = 'measure-label';
     label.textContent = (mi + 1);
     row.appendChild(label);
+
+    // Opening bar line (except first measure)
+    if (mi > 0) {
+      var bl = document.createElement('div');
+      bl.className = 'bar-line';
+      row.appendChild(bl);
+    }
+
     var bar = document.createElement('div');
     bar.className = 'pattern-bar';
     bar.dataset.measure = mi;
-    var cap = measCap();
+
+    // Build columns first, then scan for triplet groups
+    var cols = [];
     measure.forEach(function(note, ni) {
-      // Beat separator before notes that fall on beat boundaries
-      if (ni > 0) {
-        var posBefore = 0;
-        for (var k = 0; k < ni; k++) posBefore += measure[k].dur;
-        if (posBefore % 24 === 0 && posBefore > 0) {
-          var sep = document.createElement('div');
-          sep.className = 'beat-sep';
-          bar.appendChild(sep);
-        }
-      }
       var col = document.createElement('div');
       col.className = 'beat-col';
       col.dataset.measure = mi;
       col.dataset.note = ni;
-      // Width proportional to duration
       var widthPx = Math.max(32, Math.round(note.dur / 24 * 52));
       col.style.minWidth = widthPx + 'px';
 
@@ -600,7 +607,6 @@ function renderPat() {
       sym.innerHTML = svgN(note.t);
       col.appendChild(sym);
 
-      // Label: beat position
       var lbl = document.createElement('div');
       lbl.className = 'note-label';
       var tickPos = 0;
@@ -614,17 +620,73 @@ function renderPat() {
       else lbl.textContent = '.';
       col.appendChild(lbl);
 
-      // Hit marker
       var mk = document.createElement('div');
       mk.className = 'hit-marker';
       mk.innerHTML = '<div class="hit-ms" id="hm'+mi+'_'+ni+'"></div><div class="hit-dir" id="hd'+mi+'_'+ni+'"></div>';
       col.appendChild(mk);
 
-      // Click handler to open picker
       col.onclick = (function(m, n) { return function(ev) { ev.stopPropagation(); openNotePicker(m, n); }; })(mi, ni);
-      bar.appendChild(col);
+      cols.push({el:col, note:note, ni:ni});
     });
+
+    // Scan for triplet groups (runs of 3 consecutive same-type triplets)
+    var tripGroups = {}; // key: start index, value: type
+    var i = 0;
+    while (i < cols.length) {
+      var nt = cols[i].note.t;
+      if (NT[nt] && NT[nt].trip && i + 2 < cols.length &&
+          cols[i+1].note.t === nt && cols[i+2].note.t === nt) {
+        tripGroups[i] = nt;
+        i += 3;
+      } else {
+        i++;
+      }
+    }
+
+    // Append to bar with beat separators and triplet grouping
+    var ci = 0;
+    while (ci < cols.length) {
+      // Beat separator before notes on beat boundaries (not first note)
+      if (ci > 0) {
+        var posBefore = 0;
+        for (var k = 0; k < ci; k++) posBefore += measure[k].dur;
+        if (posBefore % 24 === 0 && posBefore > 0) {
+          var sep = document.createElement('div');
+          sep.className = 'beat-sep';
+          bar.appendChild(sep);
+        }
+      }
+
+      if (tripGroups.hasOwnProperty(ci)) {
+        // Wrap 3 triplet notes in a group with bracket
+        var grp = document.createElement('div');
+        grp.className = 'triplet-group';
+        for (var j = 0; j < 3; j++) {
+          grp.appendChild(cols[ci + j].el);
+        }
+        // Add CSS bracket with "3" above the group
+        var bracket = document.createElement('div');
+        bracket.className = 'triplet-bracket';
+        bracket.innerHTML = '<span class="triplet-num">3</span>';
+        grp.appendChild(bracket);
+        bar.appendChild(grp);
+        ci += 3;
+      } else {
+        bar.appendChild(cols[ci].el);
+        ci++;
+      }
+    }
+
     row.appendChild(bar);
+
+    // Final double bar line after last measure
+    if (mi === measures.length - 1) {
+      var dbl = document.createElement('div');
+      dbl.className = 'bar-line-double';
+      dbl.innerHTML = '<div class="bl-thin"></div><div class="bl-thick"></div>';
+      row.appendChild(dbl);
+    }
+
     container.appendChild(row);
   });
 }
@@ -732,13 +794,16 @@ function fillWithRests(ticks) {
   var restMap = [{dur:96,t:'wr'},{dur:48,t:'hr'},{dur:24,t:'qr'},{dur:12,t:'er'},{dur:6,t:'sr'},{dur:3,t:'tr'}];
   var rem = ticks;
   while (rem > 0) {
+    var found = false;
     for (var i = 0; i < restMap.length; i++) {
       if (restMap[i].dur <= rem) {
         fills.push({t:restMap[i].t, dur:restMap[i].dur});
         rem -= restMap[i].dur;
+        found = true;
         break;
       }
     }
+    if (!found) break; // safety: no rest fits remaining ticks
   }
   return fills;
 }
@@ -847,6 +912,7 @@ function randomMeasure() {
       {t:'sr',d:6,wt:0.5}, {t:'tr',d:3,wt:0.2}
     ];
     for (var i = 0; i < allTypes.length; i++) {
+      if (bpm > 100 && (allTypes[i].t === 't' || allTypes[i].t === 'tr')) continue;
       if (allTypes[i].d <= rem) pool.push(allTypes[i]);
     }
     if (!pool.length) break;
@@ -902,6 +968,16 @@ function tickToSec(tick) {
 async function handleGo() { if (isPlaying) return; if (!(await ensureInit())) return; startMetro(); }
 function handleStop() { if (!isPlaying) return; stopMetro(); }
 
+function playCountClick(t) {
+  if (!audioCtx) return;
+  var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+  o.connect(g); g.connect(audioCtx.destination);
+  o.frequency.value = 1600;
+  g.gain.setValueAtTime(0.5, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
+  o.start(t); o.stop(t + 0.03);
+}
+
 function startMetro() {
   isPlaying = true; sessH = []; sBeats = []; curSub = 0; lastHit = 0;
   clearMarkers();
@@ -909,13 +985,48 @@ function startMetro() {
   if (!sched.length) return;
   var totalTicks = measures.length * measCap();
   var loopDur = tickToSec(totalTicks);
-  var loopStart = audioCtx.currentTime + 0.1;
+
+  // 2-bar count-off
+  var countBeats = tsTop * 2;
+  var beatDur = 60.0 / bpm;
+  var countOffDur = countBeats * beatDur;
+  var countStart = audioCtx.currentTime + 0.1;
+
+  // Schedule count-off clicks
+  for (var ci = 0; ci < countBeats; ci++) {
+    var ct = countStart + ci * beatDur;
+    playCountClick(ct);
+  }
+
+  // Show count-off visuals
+  document.getElementById('btnGo').style.display = 'none';
+  document.getElementById('btnStop').style.display = '';
+  var statusEl = document.getElementById('status');
+
+  for (var ci = 0; ci < countBeats; ci++) {
+    (function(beatIdx) {
+      var delay = (countStart + beatIdx * beatDur - audioCtx.currentTime) * 1000;
+      setTimeout(function() {
+        if (!isPlaying) return;
+        var barNum = Math.floor(beatIdx / tsTop) + 1;
+        var beatInBar = (beatIdx % tsTop) + 1;
+        statusEl.innerHTML = '<span class="s-dot on"></span>Count-off: ' + barNum + '.' + beatInBar;
+      }, Math.max(0, delay));
+    })(ci);
+  }
+
+  // Pattern starts after count-off
+  var loopStart = countStart + countOffDur;
   var loopCount = 0;
   nextNote = loopStart;
 
-  document.getElementById('btnGo').style.display = 'none';
-  document.getElementById('btnStop').style.display = '';
-  document.getElementById('status').innerHTML = '<span class="s-dot on"></span>Playing';
+  // Start hit detection and pattern after count-off finishes
+  var countDelay = (loopStart - audioCtx.currentTime) * 1000;
+  setTimeout(function() {
+    if (!isPlaying) return;
+    statusEl.innerHTML = '<span class="s-dot on"></span>Playing';
+    startHitDet();
+  }, Math.max(0, countDelay));
 
   function tick() {
     if (!isPlaying) return;
@@ -923,7 +1034,6 @@ function startMetro() {
       var idx = curSub % sched.length;
       var n = sched[idx];
       var t = loopStart + loopCount * loopDur + tickToSec(n.tickPos);
-      // If we've moved past this loop, advance
       if (idx === 0 && curSub > 0) {
         loopCount++;
         t = loopStart + loopCount * loopDur + tickToSec(n.tickPos);
@@ -933,7 +1043,6 @@ function startMetro() {
       if (sBeats.length > sched.length * 4) sBeats = sBeats.slice(-sched.length * 4);
       hlBeat(n.mi, n.ni, t);
 
-      // Advance nextNote to the time of next event
       var nextIdx = (curSub + 1) % sched.length;
       if (nextIdx === 0) {
         nextNote = loopStart + (loopCount + 1) * loopDur;
@@ -944,7 +1053,6 @@ function startMetro() {
     }
   }
   schedT = setInterval(tick, SI); tick();
-  startHitDet();
 }
 
 function hlBeat(mi, ni, time) {
@@ -966,7 +1074,50 @@ function stopMetro() {
   document.getElementById('btnStop').style.display = 'none';
   document.getElementById('btnGo').style.display = '';
   document.getElementById('status').innerHTML = '<span class="s-dot on"></span>Mic active';
-  if (sessH.length > 0) showSum();
+  if (sessH.length > 0) {
+    showInlineTendencies();
+    showSum();
+  }
+}
+
+function showInlineTendencies() {
+  // Compute per-note averages and show them in the hit-marker area
+  var stats = {};
+  sessH.forEach(function(h) {
+    var key = h.mi + '_' + h.ni;
+    if (!stats[key]) stats[key] = [];
+    stats[key].push(h.offset);
+  });
+
+  measures.forEach(function(measure, mi) {
+    measure.forEach(function(note, ni) {
+      var key = mi + '_' + ni;
+      var me = document.getElementById('hm'+mi+'_'+ni);
+      var de = document.getElementById('hd'+mi+'_'+ni);
+      if (!me || !de) return;
+
+      var isRest = NT[note.t].rest;
+      if (isRest) return;
+
+      var hits = stats[key];
+      if (!hits || !hits.length) {
+        me.textContent = '\u2014'; me.className = 'hit-ms show'; me.style.color = 'var(--text-dim)';
+        de.textContent = 'no hits'; de.className = 'hit-dir show'; de.style.color = 'var(--text-dim)';
+        return;
+      }
+
+      var avg = hits.reduce(function(a,b){return a+b;},0) / hits.length;
+      var col, dir;
+      if (Math.abs(avg) <= 5) { col = 'cg'; dir = '\u25CF on time'; }
+      else if (avg < 0) { col = 'cr'; dir = '\u2190 early'; }
+      else { col = 'cb'; dir = 'late \u2192'; }
+
+      me.textContent = (avg > 0 ? '+' : '') + Math.round(avg) + 'ms';
+      me.className = 'hit-ms show ' + col;
+      de.textContent = dir + ' (' + hits.length + ')';
+      de.className = 'hit-dir show ' + col;
+    });
+  });
 }
 
 /* ═══════════════════════════════════════════
@@ -1020,6 +1171,7 @@ function renderHit(mi, ni, off) {
 function clearMarkers() {
   document.querySelectorAll('.hit-ms, .hit-dir').forEach(function(el) {
     el.className = el.className.replace(/show|cg|cr|cb/g, '').trim(); el.textContent = '';
+    el.style.color = '';
   });
 }
 
