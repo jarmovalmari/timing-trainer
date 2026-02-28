@@ -71,6 +71,9 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .bar-line-double .bl-thin { width:1.5px; height:52px; background:var(--text-dim); }
 .bar-line-double .bl-thick { width:4px; height:52px; background:var(--text-dim); border-radius:1px; }
 
+/* Beam group */
+.beam-group { display:flex; align-items:flex-start; position:relative; }
+
 /* Triplet group */
 .triplet-group { display:flex; align-items:flex-start; position:relative; padding-top:16px; }
 .triplet-bracket { position:absolute; top:0; left:4px; right:4px; height:14px; pointer-events:none; display:flex; align-items:flex-end; }
@@ -337,7 +340,7 @@ var NT = {
 };
 
 /* SVG Note Rendering — clean standard-proportioned symbols */
-function svgN(type, w, h, fillOverride) {
+function svgN(type, w, h, fillOverride, beamed) {
   w = w || 32; h = h || 40;
   var c = fillOverride || '#e8e8ec';
   var d = fillOverride ? fillOverride.replace(')', ',0.35)').replace('rgb', 'rgba') : 'rgba(232,232,236,0.35)';
@@ -363,20 +366,24 @@ function svgN(type, w, h, fillOverride) {
     case 'e': // eighth — filled head + stem + 1 flag
       svg += '<ellipse cx="12" cy="28" rx="6.5" ry="4.5" fill="'+c+'" transform="rotate(-15 12 28)"/>';
       svg += '<line x1="18" y1="26" x2="18" y2="6" stroke="'+c+'" stroke-width="1.8"/>';
-      svg += '<path d="M18 6 C22 8 24 14 20 18" stroke="'+c+'" stroke-width="1.8" fill="none" stroke-linecap="round"/>';
+      if (!beamed) svg += '<path d="M18 6 C22 8 24 14 20 18" stroke="'+c+'" stroke-width="1.8" fill="none" stroke-linecap="round"/>';
       break;
     case 's': // sixteenth — filled head + stem + 2 flags
       svg += '<ellipse cx="12" cy="28" rx="6.5" ry="4.5" fill="'+c+'" transform="rotate(-15 12 28)"/>';
       svg += '<line x1="18" y1="26" x2="18" y2="6" stroke="'+c+'" stroke-width="1.8"/>';
-      svg += '<path d="M18 6 C22 8 24 13 20 16" stroke="'+c+'" stroke-width="1.6" fill="none" stroke-linecap="round"/>';
-      svg += '<path d="M18 11 C22 13 24 18 20 21" stroke="'+c+'" stroke-width="1.6" fill="none" stroke-linecap="round"/>';
+      if (!beamed) {
+        svg += '<path d="M18 6 C22 8 24 13 20 16" stroke="'+c+'" stroke-width="1.6" fill="none" stroke-linecap="round"/>';
+        svg += '<path d="M18 11 C22 13 24 18 20 21" stroke="'+c+'" stroke-width="1.6" fill="none" stroke-linecap="round"/>';
+      }
       break;
     case 't': // thirty-second — filled head + stem + 3 flags
       svg += '<ellipse cx="12" cy="28" rx="6.5" ry="4.5" fill="'+c+'" transform="rotate(-15 12 28)"/>';
-      svg += '<line x1="18" y1="26" x2="18" y2="4" stroke="'+c+'" stroke-width="1.8"/>';
-      svg += '<path d="M18 4 C22 6 24 10 20 13" stroke="'+c+'" stroke-width="1.5" fill="none" stroke-linecap="round"/>';
-      svg += '<path d="M18 9 C22 11 24 15 20 18" stroke="'+c+'" stroke-width="1.5" fill="none" stroke-linecap="round"/>';
-      svg += '<path d="M18 14 C22 16 24 20 20 23" stroke="'+c+'" stroke-width="1.5" fill="none" stroke-linecap="round"/>';
+      svg += '<line x1="18" y1="26" x2="18" y2="6" stroke="'+c+'" stroke-width="1.8"/>';
+      if (!beamed) {
+        svg += '<path d="M18 4 C22 6 24 10 20 13" stroke="'+c+'" stroke-width="1.5" fill="none" stroke-linecap="round"/>';
+        svg += '<path d="M18 9 C22 11 24 15 20 18" stroke="'+c+'" stroke-width="1.5" fill="none" stroke-linecap="round"/>';
+        svg += '<path d="M18 14 C22 16 24 20 20 23" stroke="'+c+'" stroke-width="1.5" fill="none" stroke-linecap="round"/>';
+      }
       break;
 
     /* ── Triplet notes — rendered as normal notes (bracket added in renderPat) ── */
@@ -387,7 +394,7 @@ function svgN(type, w, h, fillOverride) {
     case 'et': // eighth triplet — same as eighth note
       svg += '<ellipse cx="12" cy="28" rx="6.5" ry="4.5" fill="'+c+'" transform="rotate(-15 12 28)"/>';
       svg += '<line x1="18" y1="26" x2="18" y2="6" stroke="'+c+'" stroke-width="1.8"/>';
-      svg += '<path d="M18 6 C22 8 24 14 20 18" stroke="'+c+'" stroke-width="1.8" fill="none" stroke-linecap="round"/>';
+      if (!beamed) svg += '<path d="M18 6 C22 8 24 14 20 18" stroke="'+c+'" stroke-width="1.8" fill="none" stroke-linecap="round"/>';
       break;
 
     /* ── Rests ── */
@@ -557,6 +564,8 @@ function buildPat() {
   renderPat();
 }
 
+function beamLevel(t) { return t==='e'||t==='et'?1:t==='s'?2:t==='t'?3:0; }
+
 function renderPat() {
   var container = document.getElementById('patContainer');
   container.innerHTML = '';
@@ -579,13 +588,16 @@ function renderPat() {
     bar.className = 'pattern-bar';
     bar.dataset.measure = mi;
 
-    // Build columns first, then scan for triplet groups
+    // Build columns first
     var cols = [];
+    var tickPositions = [];
+    var tp = 0;
     measure.forEach(function(note, ni) {
       var col = document.createElement('div');
       col.className = 'beat-col';
       col.dataset.measure = mi;
       col.dataset.note = ni;
+      col.dataset.noteType = note.t;
       var widthPx = Math.max(32, Math.round(note.dur / 24 * 52));
       col.style.minWidth = widthPx + 'px';
 
@@ -596,8 +608,7 @@ function renderPat() {
 
       var lbl = document.createElement('div');
       lbl.className = 'note-label';
-      var tickPos = 0;
-      for (var k = 0; k < ni; k++) tickPos += measure[k].dur;
+      var tickPos = tp;
       var beatNum = Math.floor(tickPos / 24) + 1;
       var subTick = tickPos % 24;
       if (subTick === 0) lbl.textContent = beatNum;
@@ -613,11 +624,13 @@ function renderPat() {
       col.appendChild(mk);
 
       col.onclick = (function(m, n) { return function(ev) { ev.stopPropagation(); openNotePicker(m, n); }; })(mi, ni);
-      cols.push({el:col, note:note, ni:ni});
+      cols.push({el:col, note:note, ni:ni, sym:sym});
+      tickPositions.push(tp);
+      tp += note.dur;
     });
 
     // Scan for triplet groups (runs of 3 consecutive same-type triplets)
-    var tripGroups = {}; // key: start index, value: type
+    var tripGroups = {};
     var i = 0;
     while (i < cols.length) {
       var nt = cols[i].note.t;
@@ -630,13 +643,50 @@ function renderPat() {
       }
     }
 
-    // Append to bar with beat separators and triplet grouping
+    // Scan for beam groups (consecutive beamable non-rest non-triplet notes within same beat)
+    var beamGroups = {};
+    var bi = 0;
+    while (bi < cols.length) {
+      var bnt = NT[cols[bi].note.t];
+      if (bnt && !bnt.rest && !bnt.trip && bnt.dur <= 12 && !tripGroups.hasOwnProperty(bi)) {
+        var beatStart = Math.floor(tickPositions[bi] / 24) * 24;
+        var beatEnd = beatStart + 24;
+        var group = [bi];
+        var bj = bi + 1;
+        while (bj < cols.length) {
+          var bnt2 = NT[cols[bj].note.t];
+          if (bnt2 && !bnt2.rest && !bnt2.trip && bnt2.dur <= 12 && tickPositions[bj] < beatEnd) {
+            group.push(bj);
+            bj++;
+          } else break;
+        }
+        if (group.length >= 2) {
+          beamGroups[bi] = group;
+          group.forEach(function(idx) {
+            cols[idx].sym.innerHTML = svgN(cols[idx].note.t, undefined, undefined, undefined, true);
+          });
+        }
+        bi = bj;
+      } else {
+        bi++;
+      }
+    }
+
+    // Beam eighth triplets within their triplet groups
+    Object.keys(tripGroups).forEach(function(si) {
+      si = parseInt(si);
+      if (tripGroups[si] === 'et') {
+        for (var j = 0; j < 3; j++) {
+          cols[si + j].sym.innerHTML = svgN('et', undefined, undefined, undefined, true);
+        }
+      }
+    });
+
+    // Append to bar with beat separators, beam groups, and triplet grouping
     var ci = 0;
     while (ci < cols.length) {
-      // Beat separator before notes on beat boundaries (not first note)
       if (ci > 0) {
-        var posBefore = 0;
-        for (var k = 0; k < ci; k++) posBefore += measure[k].dur;
+        var posBefore = tickPositions[ci];
         if (posBefore % 24 === 0 && posBefore > 0) {
           var sep = document.createElement('div');
           sep.className = 'beat-sep';
@@ -645,19 +695,23 @@ function renderPat() {
       }
 
       if (tripGroups.hasOwnProperty(ci)) {
-        // Wrap 3 triplet notes in a group with bracket
         var grp = document.createElement('div');
         grp.className = 'triplet-group';
-        for (var j = 0; j < 3; j++) {
-          grp.appendChild(cols[ci + j].el);
-        }
-        // Add CSS bracket with "3" above the group
+        if (tripGroups[ci] === 'et') grp.classList.add('beam-group');
+        for (var j = 0; j < 3; j++) grp.appendChild(cols[ci + j].el);
         var bracket = document.createElement('div');
         bracket.className = 'triplet-bracket';
         bracket.innerHTML = '<span class="triplet-num">3</span>';
         grp.appendChild(bracket);
         bar.appendChild(grp);
         ci += 3;
+      } else if (beamGroups.hasOwnProperty(ci)) {
+        var bgrp = document.createElement('div');
+        bgrp.className = 'beam-group';
+        var indices = beamGroups[ci];
+        for (var j = 0; j < indices.length; j++) bgrp.appendChild(cols[indices[j]].el);
+        bar.appendChild(bgrp);
+        ci = indices[indices.length - 1] + 1;
       } else {
         bar.appendChild(cols[ci].el);
         ci++;
@@ -666,7 +720,6 @@ function renderPat() {
 
     row.appendChild(bar);
 
-    // Final double bar line after last measure
     if (mi === measures.length - 1) {
       var dbl = document.createElement('div');
       dbl.className = 'bar-line-double';
@@ -675,6 +728,66 @@ function renderPat() {
     }
 
     container.appendChild(row);
+  });
+  // Draw beam overlays after DOM is built
+  addBeamOverlays();
+}
+
+function addBeamOverlays() {
+  document.querySelectorAll('.beam-group').forEach(function(grp) {
+    var beatCols = grp.querySelectorAll('.beat-col');
+    if (beatCols.length < 2) return;
+    var grpRect = grp.getBoundingClientRect();
+    var stemPoints = [];
+    beatCols.forEach(function(col) {
+      var colRect = col.getBoundingClientRect();
+      var stemX = colRect.left - grpRect.left + 2 + 18;
+      var t = col.dataset.noteType;
+      stemPoints.push({x: stemX, level: beamLevel(t)});
+    });
+
+    var maxLevel = 0;
+    for (var i = 0; i < stemPoints.length; i++) if (stemPoints[i].level > maxLevel) maxLevel = stemPoints[i].level;
+
+    var beamThick = 3, beamGap = 4, stemTopY = 6;
+    var svgW = grp.offsetWidth;
+    var firstX = stemPoints[0].x;
+    var lastX = stemPoints[stemPoints.length - 1].x;
+    var lines = '';
+
+    // Primary beam (level 1) — spans full group
+    lines += '<line x1="'+firstX+'" y1="'+stemTopY+'" x2="'+lastX+'" y2="'+stemTopY+'" stroke="#e8e8ec" stroke-width="'+beamThick+'"/>';
+
+    // Secondary beams (level 2+)
+    for (var lvl = 2; lvl <= maxLevel; lvl++) {
+      var yOff = stemTopY + (lvl - 1) * (beamThick + beamGap);
+      var segStart = -1;
+      for (var si = 0; si <= stemPoints.length; si++) {
+        if (si < stemPoints.length && stemPoints[si].level >= lvl) {
+          if (segStart < 0) segStart = si;
+        } else {
+          if (segStart >= 0) {
+            var segEnd = si - 1;
+            if (segStart === segEnd) {
+              var dir = segStart === 0 ? 1 : -1;
+              var sx = stemPoints[segStart].x;
+              lines += '<line x1="'+sx+'" y1="'+yOff+'" x2="'+(sx + dir * 8)+'" y2="'+yOff+'" stroke="#e8e8ec" stroke-width="'+beamThick+'"/>';
+            } else {
+              lines += '<line x1="'+stemPoints[segStart].x+'" y1="'+yOff+'" x2="'+stemPoints[segEnd].x+'" y2="'+yOff+'" stroke="#e8e8ec" stroke-width="'+beamThick+'"/>';
+            }
+            segStart = -1;
+          }
+        }
+      }
+    }
+
+    var colTop = beatCols[0].getBoundingClientRect().top - grpRect.top;
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', svgW);
+    svg.setAttribute('height', 40);
+    svg.style.cssText = 'position:absolute;top:'+(colTop+4)+'px;left:0;pointer-events:none;';
+    svg.innerHTML = lines;
+    grp.appendChild(svg);
   });
 }
 
