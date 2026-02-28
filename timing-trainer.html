@@ -1415,12 +1415,36 @@ function beginCalib() {
   var bd = 60.0 / cBpm;
   cNxt = audioCtx.currentTime + 0.5;
 
+  // Auto-threshold: track peaks and adjust if hits are missed
+  var atPeakMax = 0;       // max peak seen in current check window
+  var atLastCheck = 0;     // click count at last check
+  var atLastHits = 0;      // hit count at last check
+
   function sched() {
     if (cSt !== 'listening') return;
     while (cNxt < audioCtx.currentTime + 0.15) {
       playClick(cNxt, cClk.length % 4 === 0);
       cClk.push(cNxt);
       cNxt += bd;
+
+      // Every 4 clicks, check if threshold needs lowering
+      if (cClk.length > 0 && cClk.length % 4 === 0 && cClk.length > atLastCheck) {
+        var newHits = cHit.length - atLastHits;
+        if (newHits === 0 && atPeakMax > 2) {
+          // Signal present but below threshold — lower it
+          var newSens = Math.max(3, Math.floor(atPeakMax * 0.6));
+          if (newSens < sens) {
+            sens = newSens;
+            document.getElementById('sensS').value = sens;
+            document.getElementById('sensV').textContent = sens;
+            document.getElementById('micTh').style.left = (sens / 128 * 100) + '%';
+            document.getElementById('calProg').textContent = 'Threshold adjusted to ' + sens + ' \u2014 keep hitting...';
+          }
+        }
+        atLastCheck = cClk.length;
+        atLastHits = cHit.length;
+        atPeakMax = 0;
+      }
     }
   }
   cSch = setInterval(sched, 20); sched();
@@ -1431,6 +1455,9 @@ function beginCalib() {
     var now = audioCtx.currentTime;
     var nowMs = now * 1000;
     document.getElementById('calMF').style.width = Math.min(100, (p/128)*100) + '%';
+
+    // Track max peak for auto-threshold
+    if (p > atPeakMax) atPeakMax = p;
 
     if (cArmed) {
       if (p > sens && (nowMs - cLH) > MR) {
