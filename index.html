@@ -1178,7 +1178,7 @@ function saveLat() { localStorage.setItem(aMode === 'bt' ? 'tt_bt' : 'tt_w', lat
 function adjLat(d) { latMs += d; document.getElementById('latIn').value = latMs; saveLat(); }
 
 async function startCalib() {
-  if (isPlaying) { alert('Stop the metronome first'); return; }
+  if (isPlaying) stopMetro();
   if (!(await ensureInit())) return;
   cSt = 'idle'; cClk = []; cHit = []; cLH = 0; cArmed = true;
   if (cSch) { clearInterval(cSch); cSch = null; }
