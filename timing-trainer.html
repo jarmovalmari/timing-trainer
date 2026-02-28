@@ -1138,9 +1138,9 @@ function playCountClick(t) {
   var o = audioCtx.createOscillator(), g = audioCtx.createGain();
   o.connect(g); g.connect(masterGain);
   o.frequency.value = 1600;
-  g.gain.setValueAtTime(0.7 * vol, t);
-  g.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
-  o.start(t); o.stop(t + 0.03);
+  g.gain.setValueAtTime(1.2 * vol, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
+  o.start(t); o.stop(t + 0.05);
 }
 
 function startMetro() {
@@ -1361,6 +1361,7 @@ function adjLat(d) { latMs += d; document.getElementById('latIn').value = latMs;
 async function startCalib() {
   if (isPlaying) stopMetro();
   if (!(await ensureInit())) return;
+  if (masterGain) masterGain.gain.setValueAtTime(1, audioCtx.currentTime);
   cSt = 'idle'; cClk = []; cHit = []; cLH = 0; cArmed = true;
   if (cSch) { clearInterval(cSch); cSch = null; }
   if (cMP) { clearInterval(cMP); cMP = null; }
