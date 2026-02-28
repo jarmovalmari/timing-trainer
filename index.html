@@ -182,6 +182,14 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .result-stat span { color:var(--text); font-weight:600; }
 .result-clear { font-size:11px; padding:4px 10px; background:var(--surface); border:1px solid var(--border); border-radius:4px; color:var(--text-dim); cursor:pointer; }
 .result-clear:active { background:var(--border); }
+.result-meta { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--text-dim); margin-bottom:6px; }
+.share-ov { position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:200; display:flex; align-items:center; justify-content:center; }
+.share-card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; min-width:240px; text-align:center; }
+.share-card .share-title { font-size:14px; font-weight:600; margin-bottom:12px; }
+.share-btn { display:block; width:100%; padding:12px; margin-bottom:8px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:13px; cursor:pointer; text-align:center; }
+.share-btn:active { background:var(--border); }
+.share-btn:last-child { margin-bottom:0; }
+.share-close { font-size:12px; color:var(--text-dim); cursor:pointer; margin-top:10px; }
 .result-hist { margin-top:10px; }
 .rh-row { display:flex; align-items:center; gap:6px; margin-bottom:2px; }
 .rh-lbl { font-family:'JetBrains Mono',monospace; font-size:8px; color:var(--text-dim); width:50px; text-align:right; }
@@ -465,7 +473,7 @@ var sens = 12, hitWin = 120, MR = 35, RA = 0.3, ML = 150; // min retrigger ms, r
 var lastHit = 0, hitArmed = true, micPoll = null, micMeterI = null;
 var schedT = null, nextNote = 0, curSub = 0, sBeats = [];
 var LA = 100, SI = 20;
-var sessH = [];
+var sessH = [], sessStart = 0, sessBpm = 0;
 // Note picker state
 var npMi = -1, npNi = -1;
 // Calibration
@@ -1160,6 +1168,7 @@ function playCountClick(t) {
 
 function startMetro() {
   isPlaying = true; sessH = []; sBeats = []; curSub = 0; lastHit = 0; hitArmed = true;
+  sessStart = Date.now(); sessBpm = bpm;
   if (masterGain) masterGain.gain.setValueAtTime(1, audioCtx.currentTime);
   if ('wakeLock' in navigator) navigator.wakeLock.request('screen').then(function(l) { wakeLock = l; }).catch(function() {});
   clearMarkers();
@@ -1557,6 +1566,8 @@ function closeCalib() {
 /* ═══════════════════════════════════════════
    INLINE RESULTS (replaces overlay)
    ═══════════════════════════════════════════ */
+var lastResult = null; // stored for share card
+
 function showResultStrip() {
   var offs = sessH.map(function(h){return h.offset;});
   var avg = offs.reduce(function(a,b){return a+b;},0) / offs.length;
@@ -1565,16 +1576,27 @@ function showResultStrip() {
   var oN = offs.filter(function(o){return Math.abs(o) <= 15;}).length;
   var oP = Math.round(oN / offs.length * 100);
 
-  var tend, tstyle;
-  if (Math.abs(avg) <= 5) { tend = 'Excellent \u2014 centered'; tstyle = 'color:var(--green)'; }
-  else if (avg < -5) { tend = 'Rushing ~' + Math.abs(Math.round(avg)) + 'ms early'; tstyle = 'color:var(--red)'; }
-  else { tend = 'Dragging ~' + Math.round(avg) + 'ms late'; tstyle = 'color:var(--blue)'; }
+  var durSec = Math.round((Date.now() - sessStart) / 1000);
+  var durStr = durSec >= 60 ? Math.floor(durSec / 60) + 'm ' + (durSec % 60) + 's' : durSec + 's';
+
+  var tend, tstyle, tcolor;
+  if (Math.abs(avg) <= 5) { tend = 'Excellent \u2014 centered'; tstyle = 'color:var(--green)'; tcolor = '#4ade80'; }
+  else if (avg < -5) { tend = 'Rushing ~' + Math.abs(Math.round(avg)) + 'ms early'; tstyle = 'color:var(--red)'; tcolor = '#f87171'; }
+  else { tend = 'Dragging ~' + Math.round(avg) + 'ms late'; tstyle = 'color:var(--blue)'; tcolor = '#60a5fa'; }
 
   // Histogram
-  var bins = [{l:'<-30',mn:-Infinity,mx:-30,c:'var(--red)'},{l:'-30..-10',mn:-30,mx:-10,c:'#f87171'},{l:'\u00b110',mn:-10,mx:10,c:'var(--green)'},{l:'+10..+30',mn:10,mx:30,c:'#60a5fa'},{l:'>+30',mn:30,mx:Infinity,c:'var(--blue)'}];
+  var bins = [{l:'<-30',mn:-Infinity,mx:-30,c:'var(--red)',hx:'#f87171'},{l:'-30..-10',mn:-30,mx:-10,c:'#f87171',hx:'#f87171'},{l:'\u00b110',mn:-10,mx:10,c:'var(--green)',hx:'#4ade80'},{l:'+10..+30',mn:10,mx:30,c:'#60a5fa',hx:'#60a5fa'},{l:'>+30',mn:30,mx:Infinity,c:'var(--blue)',hx:'#60a5fa'}];
   var bc = bins.map(function(b){return offs.filter(function(o){return o>=b.mn&&o<b.mx;}).length;});
   bc[bc.length-1] = offs.filter(function(o){return o>=30;}).length;
   var mx = Math.max.apply(null, bc.concat([1]));
+
+  // Store for share card
+  lastResult = {
+    bpm: sessBpm, dur: durStr, date: new Date().toLocaleDateString(),
+    tend: tend, tcolor: tcolor, hits: sessH.length, oP: oP,
+    avg: Math.round(avg), absAvg: Math.round(absAvg), sd: Math.round(sd),
+    bins: bins.map(function(b,i){ return {l:b.l, c:b.hx, v:bc[i]}; }), mx: mx
+  };
 
   var histHtml = '<div class="result-hist">';
   bins.forEach(function(b,i){
@@ -1590,12 +1612,12 @@ function showResultStrip() {
   var strip = document.getElementById('resultStrip');
   strip.innerHTML =
     '<div class="result-strip">' +
-    '<div class="result-tend"><span style="'+tstyle+'">'+tend+'</span><div class="result-clear" onclick="clearResults()">Clear</div></div>' +
+    '<div class="result-tend"><span style="'+tstyle+'">'+tend+'</span><div style="display:flex;gap:6px"><div class="result-clear" onclick="shareResults()">Share</div><div class="result-clear" onclick="clearResults()">Clear</div></div></div>' +
+    '<div class="result-meta">' + sessBpm + ' BPM \u00b7 ' + durStr + ' \u00b7 ' + sessH.length + ' hits</div>' +
     '<div class="result-stats">' +
     '<div class="result-stat">avg <span>'+Math.round(avg)+'ms</span></div>' +
     '<div class="result-stat">|avg| <span>'+Math.round(absAvg)+'ms</span></div>' +
     '<div class="result-stat">\u03C3 <span>\u00b1'+Math.round(sd)+'ms</span></div>' +
-    '<div class="result-stat">hits <span>'+sessH.length+'</span></div>' +
     '<div class="result-stat">on-time <span style="color:var(--green)">'+oP+'%</span></div>' +
     '</div>' + histHtml + calNote + '</div>';
   strip.style.display = 'block';
@@ -1605,6 +1627,173 @@ function clearResults() {
   document.getElementById('resultStrip').style.display = 'none';
   document.getElementById('resultStrip').innerHTML = '';
   clearMarkers();
+}
+
+function renderShareCard() {
+  if (!lastResult) return null;
+  var r = lastResult;
+  var W = 540, H = 380;
+  var c = document.createElement('canvas'); c.width = W; c.height = H;
+  var x = c.getContext('2d');
+
+  // Background
+  x.fillStyle = '#1a1a22';
+  x.beginPath();
+  x.roundRect(0, 0, W, H, 16);
+  x.fill();
+
+  // Border
+  x.strokeStyle = '#2a2a35';
+  x.lineWidth = 1;
+  x.beginPath();
+  x.roundRect(0, 0, W, H, 16);
+  x.stroke();
+
+  // Header
+  x.font = '600 18px "DM Sans", sans-serif';
+  x.fillStyle = '#e8e8ec';
+  x.fillText('Timing Trainer', 24, 36);
+  x.font = '12px "JetBrains Mono", monospace';
+  x.fillStyle = '#888';
+  x.textAlign = 'right';
+  x.fillText(r.date, W - 24, 36);
+  x.textAlign = 'left';
+
+  // Meta line
+  x.font = '12px "JetBrains Mono", monospace';
+  x.fillStyle = '#888';
+  x.fillText(r.bpm + ' BPM  \u00b7  ' + r.dur + '  \u00b7  ' + r.hits + ' hits', 24, 58);
+
+  // Divider
+  x.strokeStyle = '#2a2a35';
+  x.beginPath(); x.moveTo(24, 70); x.lineTo(W - 24, 70); x.stroke();
+
+  // Tendency
+  x.font = '600 16px "DM Sans", sans-serif';
+  x.fillStyle = r.tcolor;
+  x.fillText(r.tend, 24, 96);
+
+  // Stats row
+  x.font = '12px "JetBrains Mono", monospace';
+  var stats = [
+    {l:'avg', v:r.avg+'ms', c:'#e8e8ec'},
+    {l:'|avg|', v:r.absAvg+'ms', c:'#e8e8ec'},
+    {l:'\u03C3', v:'\u00b1'+r.sd+'ms', c:'#e8e8ec'},
+    {l:'on-time', v:r.oP+'%', c:'#4ade80'}
+  ];
+  var sx = 24;
+  stats.forEach(function(s) {
+    x.fillStyle = '#888';
+    x.fillText(s.l + ' ', sx, 124);
+    var lw = x.measureText(s.l + ' ').width;
+    x.fillStyle = s.c;
+    x.font = '600 12px "JetBrains Mono", monospace';
+    x.fillText(s.v, sx + lw, 124);
+    sx += lw + x.measureText(s.v).width + 20;
+    x.font = '12px "JetBrains Mono", monospace';
+  });
+
+  // Histogram
+  var histY = 148;
+  var barX = 100, barW = W - 140, barH = 16, gap = 6;
+  r.bins.forEach(function(b, i) {
+    var y = histY + i * (barH + gap);
+    // Label
+    x.font = '10px "JetBrains Mono", monospace';
+    x.fillStyle = '#888';
+    x.textAlign = 'right';
+    x.fillText(b.l, barX - 10, y + 12);
+    x.textAlign = 'left';
+    // Bar background
+    x.fillStyle = '#222230';
+    x.beginPath(); x.roundRect(barX, y, barW, barH, 3); x.fill();
+    // Bar fill
+    if (b.v > 0) {
+      var w = Math.max(4, (b.v / r.mx) * barW);
+      x.fillStyle = b.c;
+      x.beginPath(); x.roundRect(barX, y, w, barH, 3); x.fill();
+    }
+    // Count
+    x.fillStyle = '#888';
+    x.fillText(b.v.toString(), barX + barW + 8, y + 12);
+  });
+
+  // On-time circle
+  var circX = W / 2, circY = H - 50, circR = 28;
+  x.beginPath(); x.arc(circX, circY, circR, 0, Math.PI * 2); x.fillStyle = '#222230'; x.fill();
+  var endAngle = -Math.PI / 2 + (r.oP / 100) * Math.PI * 2;
+  x.beginPath(); x.arc(circX, circY, circR, -Math.PI / 2, endAngle);
+  x.strokeStyle = '#4ade80'; x.lineWidth = 4; x.lineCap = 'round'; x.stroke();
+  x.font = '600 14px "JetBrains Mono", monospace';
+  x.fillStyle = '#4ade80'; x.textAlign = 'center';
+  x.fillText(r.oP + '%', circX, circY + 5);
+  x.font = '10px "JetBrains Mono", monospace';
+  x.fillStyle = '#888';
+  x.fillText('on-time', circX, circY + 20);
+  x.textAlign = 'left';
+
+  return c;
+}
+
+function shareResults() {
+  if (!lastResult) return;
+  // Show share popup
+  var ov = document.createElement('div');
+  ov.className = 'share-ov';
+  ov.innerHTML =
+    '<div class="share-card">' +
+    '<div class="share-title">Share Results</div>' +
+    '<div class="share-btn" id="shareCopy">\uD83D\uDCCB Copy to Clipboard</div>' +
+    '<div class="share-btn" id="shareSave">\uD83D\uDCBE Save Image</div>' +
+    '<div class="share-close" id="shareClose">\u2715 Close</div>' +
+    '</div>';
+  document.body.appendChild(ov);
+
+  ov.addEventListener('click', function(e) {
+    if (e.target === ov) { document.body.removeChild(ov); }
+  });
+  document.getElementById('shareClose').addEventListener('click', function() {
+    document.body.removeChild(ov);
+  });
+  document.getElementById('shareCopy').addEventListener('click', function() {
+    var canvas = renderShareCard();
+    if (!canvas) return;
+    canvas.toBlob(function(blob) {
+      if (navigator.clipboard && window.ClipboardItem) {
+        navigator.clipboard.write([new ClipboardItem({'image/png': blob})]).then(function() {
+          document.getElementById('shareCopy').textContent = '\u2705 Copied!';
+          setTimeout(function() { if (ov.parentNode) document.body.removeChild(ov); }, 800);
+        }).catch(function() {
+          // Fallback: save instead
+          saveBlobAsFile(blob);
+          document.body.removeChild(ov);
+        });
+      } else {
+        // Clipboard API not available, fallback to save
+        saveBlobAsFile(blob);
+        document.body.removeChild(ov);
+      }
+    }, 'image/png');
+  });
+  document.getElementById('shareSave').addEventListener('click', function() {
+    var canvas = renderShareCard();
+    if (!canvas) return;
+    canvas.toBlob(function(blob) {
+      saveBlobAsFile(blob);
+      document.body.removeChild(ov);
+    }, 'image/png');
+  });
+}
+
+function saveBlobAsFile(blob) {
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'timing-trainer-' + new Date().toISOString().slice(0,10) + '.png';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
 }
 
 /* ═══════════════════════════════════════════
