@@ -431,7 +431,7 @@ function svgN(type, w, h, fillOverride) {
    STATE
    ═══════════════════════════════════════════ */
 var audioCtx = null, micStream = null, analyser = null, micData = null;
-var isPlaying = false, isInit = false;
+var isPlaying = false, isInit = false, wakeLock = null;
 var bpm = 100, tsTop = 4, tsBot = 4, aMode = 'w', latMs = 0;
 var measures = []; // array of arrays: [[{t,dur},...],...]
 var sens = 12, hitWin = 120, MR = 35, RA = 0.3, ML = 150; // min retrigger ms, re-arm fraction, max lockout ms
@@ -967,6 +967,7 @@ function playCountClick(t) {
 
 function startMetro() {
   isPlaying = true; sessH = []; sBeats = []; curSub = 0; lastHit = 0; hitArmed = true;
+  if ('wakeLock' in navigator) navigator.wakeLock.request('screen').then(function(l) { wakeLock = l; }).catch(function() {});
   clearMarkers();
   clearResults();
   var sched = buildSched();
@@ -1057,6 +1058,7 @@ function hlBeat(mi, ni, time) {
 
 function stopMetro() {
   isPlaying = false;
+  if (wakeLock) { wakeLock.release(); wakeLock = null; }
   if (schedT) { clearInterval(schedT); schedT = null; }
   stopHitDet();
   document.querySelectorAll('.beat-col').forEach(function(el) { el.classList.remove('active'); });
@@ -1371,6 +1373,11 @@ function clearResults() {
   document.getElementById('winS').addEventListener('input', function(e) { hitWin = parseInt(e.target.value); document.getElementById('winV').textContent = hitWin+'ms'; });
   document.getElementById('latIn').addEventListener('change', function(e) { latMs = parseInt(e.target.value)||0; saveLat(); });
   document.getElementById('latIn').addEventListener('input', function(e) { latMs = parseInt(e.target.value)||0; });
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible' && isPlaying && !wakeLock && 'wakeLock' in navigator) {
+      navigator.wakeLock.request('screen').then(function(l) { wakeLock = l; }).catch(function() {});
+    }
+  });
 })();
 </script>
 </body>
