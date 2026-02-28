@@ -447,7 +447,7 @@ function svgN(type, w, h, fillOverride, beamed) {
 /* ═══════════════════════════════════════════
    STATE
    ═══════════════════════════════════════════ */
-var audioCtx = null, micStream = null, analyser = null, micData = null;
+var audioCtx = null, micStream = null, analyser = null, micData = null, masterGain = null;
 var isPlaying = false, isInit = false, wakeLock = null;
 var bpm = 100, tsTop = 4, tsBot = 4, aMode = 'w', latMs = 0, clickVol = 80;
 var measures = []; // array of arrays: [[{t,dur},...],...]
@@ -495,6 +495,8 @@ async function ensureInit() {
   try {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     if (audioCtx.state === 'suspended') await audioCtx.resume();
+    masterGain = audioCtx.createGain();
+    masterGain.connect(audioCtx.destination);
     await connectMic();
     startMicMeter();
     isInit = true;
@@ -519,8 +521,6 @@ async function connectMic(deviceId) {
   }
   micSrcNode.connect(analyser);
   micData = new Uint8Array(analyser.fftSize);
-  // Reset energy baseline on switch
-  energyBaseline = 0;
   hitArmed = true;
 }
 
@@ -573,36 +573,11 @@ function getPeak() {
   return p;
 }
 
-// Energy-based spike detection for ANC headphones
-var energyBaseline = 0, EB_DECAY = 0.92, SPIKE_RATIO = 3.5;
-function getEnergy() {
-  if (!analyser) return 0;
-  analyser.getByteTimeDomainData(micData);
-  var sum = 0;
-  for (var i = 0; i < micData.length; i++) { var v = micData[i] - 128; sum += v * v; }
-  return Math.sqrt(sum / micData.length);
-}
-function isHitDetected() {
-  var p = getPeak();
-  var e = getEnergy();
-  // Spike detection only activates once baseline is established
-  var spike = false;
-  if (energyBaseline > 0.5) {
-    spike = (e / energyBaseline) > SPIKE_RATIO;
-  }
-  var peakHit = p > sens;
-  // Always update baseline when not spiking so it can bootstrap from 0
-  if (!spike) energyBaseline = energyBaseline * EB_DECAY + e * (1 - EB_DECAY);
-  return {hit: peakHit || spike, peak: p, energy: e};
-}
-
 var mfTO = null;
 function startMicMeter() {
   if (micMeterI) return;
   micMeterI = setInterval(function() {
     if (!analyser) return;
-    // Meter only reads levels — does NOT call isHitDetected() to avoid
-    // double-updating energy baseline and triggering phantom hits
     var p = getPeak();
     var pct = Math.min(100, (p / 128) * 100);
     document.getElementById('micFill').style.width = pct + '%';
@@ -620,7 +595,7 @@ function playClick(t, acc) {
   if (!audioCtx) return;
   var vol = clickVol / 100;
   var o = audioCtx.createOscillator(), g = audioCtx.createGain();
-  o.connect(g); g.connect(audioCtx.destination);
+  o.connect(g); g.connect(masterGain);
   o.frequency.value = acc ? 1200 : 800;
   g.gain.setValueAtTime((acc ? 1.5 : 0.8) * vol, t);
   g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
@@ -1159,16 +1134,18 @@ function handleStop() { if (!isPlaying) return; stopMetro(); }
 
 function playCountClick(t) {
   if (!audioCtx) return;
+  var vol = clickVol / 100;
   var o = audioCtx.createOscillator(), g = audioCtx.createGain();
-  o.connect(g); g.connect(audioCtx.destination);
+  o.connect(g); g.connect(masterGain);
   o.frequency.value = 1600;
-  g.gain.setValueAtTime(0.5, t);
+  g.gain.setValueAtTime(0.7 * vol, t);
   g.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
   o.start(t); o.stop(t + 0.03);
 }
 
 function startMetro() {
   isPlaying = true; sessH = []; sBeats = []; curSub = 0; lastHit = 0; hitArmed = true;
+  if (masterGain) masterGain.gain.setValueAtTime(1, audioCtx.currentTime);
   if ('wakeLock' in navigator) navigator.wakeLock.request('screen').then(function(l) { wakeLock = l; }).catch(function() {});
   clearMarkers();
   clearResults();
@@ -1260,6 +1237,8 @@ function hlBeat(mi, ni, time) {
 
 function stopMetro() {
   isPlaying = false;
+  // Immediately silence all scheduled audio
+  if (masterGain) masterGain.gain.setValueAtTime(0, audioCtx.currentTime);
   if (wakeLock) { wakeLock.release(); wakeLock = null; }
   if (schedT) { clearInterval(schedT); schedT = null; }
   stopHitDet();
@@ -1306,23 +1285,19 @@ function showInlineTendencies() {
 function startHitDet() {
   if (micPoll) clearInterval(micPoll);
   hitArmed = true;
-  energyBaseline = 0;
   micPoll = setInterval(function() {
     if (!analyser || !isPlaying) return;
-    var d = isHitDetected();
+    var p = getPeak();
     var now = audioCtx.currentTime;
     var nowMs = now * 1000;
     if (hitArmed) {
-      if (d.hit && (nowMs - lastHit) > MR) {
+      if (p > sens && (nowMs - lastHit) > MR) {
         lastHit = nowMs;
         hitArmed = false;
         procHit(now);
       }
-    } else {
-      // Re-arm when signal drops OR timeout expires
-      var peakDropped = d.peak < sens * RA;
-      var energyDropped = energyBaseline < 0.5 || d.energy < energyBaseline * 1.5;
-      if ((peakDropped && energyDropped) || (nowMs - lastHit) > ML) hitArmed = true;
+    } else if (p < sens * RA || (nowMs - lastHit) > ML) {
+      hitArmed = true;
     }
   }, 3);
 }
@@ -1417,16 +1392,15 @@ function beginCalib() {
   }
   cSch = setInterval(sched, 20); sched();
 
-  energyBaseline = 0;
   cMP = setInterval(function() {
     if (cSt !== 'listening') return;
-    var d = isHitDetected();
+    var p = getPeak();
     var now = audioCtx.currentTime;
     var nowMs = now * 1000;
-    document.getElementById('calMF').style.width = Math.min(100, (d.peak/128)*100) + '%';
+    document.getElementById('calMF').style.width = Math.min(100, (p/128)*100) + '%';
 
     if (cArmed) {
-      if (d.hit && (nowMs - cLH) > MR) {
+      if (p > sens && (nowMs - cLH) > MR) {
         cLH = nowMs;
         cArmed = false;
         cHit.push(now);
@@ -1437,10 +1411,8 @@ function beginCalib() {
         vis.classList.add('flash');
         setTimeout(function() { vis.classList.remove('flash'); }, 120);
       }
-    } else {
-      var peakDropped = d.peak < sens * RA;
-      var energyDropped = energyBaseline < 0.5 || d.energy < energyBaseline * 1.5;
-      if ((peakDropped && energyDropped) || (nowMs - cLH) > ML) cArmed = true;
+    } else if (p < sens * RA || (nowMs - cLH) > ML) {
+      cArmed = true;
     }
   }, 3);
 }
