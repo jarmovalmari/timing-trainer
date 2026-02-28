@@ -239,6 +239,11 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
       </div>
     </div>
     <div class="cal-btn" onclick="startCalib()">&#9201; Calibrate Latency</div>
+    <div class="sl-row" style="margin-top:12px">
+      <span class="sl-label">Volume</span>
+      <input type="range" class="sl-ctrl" id="volS" min="0" max="100" value="80">
+      <span class="sl-label" id="volV" style="min-width:28px">80%</span>
+    </div>
   </div>
   <div class="section">
     <div class="section-title">Microphone</div>
@@ -439,7 +444,7 @@ function svgN(type, w, h, fillOverride, beamed) {
    ═══════════════════════════════════════════ */
 var audioCtx = null, micStream = null, analyser = null, micData = null;
 var isPlaying = false, isInit = false, wakeLock = null;
-var bpm = 100, tsTop = 4, tsBot = 4, aMode = 'w', latMs = 0;
+var bpm = 100, tsTop = 4, tsBot = 4, aMode = 'w', latMs = 0, clickVol = 80;
 var measures = []; // array of arrays: [[{t,dur},...],...]
 var sens = 12, hitWin = 120, MR = 35, RA = 0.3, ML = 150; // min retrigger ms, re-arm fraction, max lockout ms
 var lastHit = 0, hitArmed = true, micPoll = null, micMeterI = null;
@@ -530,10 +535,11 @@ function startMicMeter() {
 
 function playClick(t, acc) {
   if (!audioCtx) return;
+  var vol = clickVol / 100;
   var o = audioCtx.createOscillator(), g = audioCtx.createGain();
   o.connect(g); g.connect(audioCtx.destination);
   o.frequency.value = acc ? 1200 : 800;
-  g.gain.setValueAtTime(acc ? 0.6 : 0.3, t);
+  g.gain.setValueAtTime((acc ? 0.9 : 0.5) * vol, t);
   g.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
   o.start(t); o.stop(t + 0.05);
 }
@@ -1478,12 +1484,17 @@ function clearResults() {
    BOOT
    ═══════════════════════════════════════════ */
 (function() {
+  var sv = localStorage.getItem('tt_vol');
+  if (sv !== null) clickVol = parseInt(sv);
+  document.getElementById('volS').value = clickVol;
+  document.getElementById('volV').textContent = clickVol + '%';
   loadLat();
   buildPat();
   document.getElementById('bpmVal').textContent = bpm;
   document.getElementById('bpmSlider').addEventListener('input', function(e) { bpm = parseInt(e.target.value); document.getElementById('bpmVal').textContent = bpm; });
   document.getElementById('sensS').addEventListener('input', function(e) { sens = parseInt(e.target.value); document.getElementById('sensV').textContent = sens; document.getElementById('micTh').style.left = (sens/128*100)+'%'; });
   document.getElementById('winS').addEventListener('input', function(e) { hitWin = parseInt(e.target.value); document.getElementById('winV').textContent = hitWin+'ms'; });
+  document.getElementById('volS').addEventListener('input', function(e) { clickVol = parseInt(e.target.value); document.getElementById('volV').textContent = clickVol + '%'; localStorage.setItem('tt_vol', clickVol); });
   document.getElementById('latIn').addEventListener('change', function(e) { latMs = parseInt(e.target.value)||0; saveLat(); });
   document.getElementById('latIn').addEventListener('input', function(e) { latMs = parseInt(e.target.value)||0; });
   document.addEventListener('visibilitychange', function() {
