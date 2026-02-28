@@ -110,6 +110,7 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .sl-label { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--text-dim); min-width:36px; }
 .sl-ctrl { flex:1; -webkit-appearance:none; appearance:none; height:3px; background:var(--border); border-radius:2px; outline:none; }
 .sl-ctrl::-webkit-slider-thumb { -webkit-appearance:none; width:18px; height:18px; background:var(--accent); border-radius:50%; cursor:pointer; }
+.mic-sel { flex:1; background:var(--card); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:6px 8px; font-family:'JetBrains Mono',monospace; font-size:10px; outline:none; -webkit-appearance:none; appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 8px center; padding-right:24px; }
 
 /* Transport */
 .transport { position:fixed; bottom:0; left:0; right:0; background:var(--surface); border-top:1px solid var(--border); padding:12px 16px calc(12px + env(safe-area-inset-bottom)); display:flex; gap:10px; justify-content:center; z-index:50; }
@@ -247,6 +248,10 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
   </div>
   <div class="section">
     <div class="section-title">Microphone</div>
+    <div class="sl-row" style="margin-top:0">
+      <span class="sl-label">Input</span>
+      <select id="micSel" class="mic-sel" onchange="switchMic()"><option value="">Default</option></select>
+    </div>
     <div class="mic-row">
       <div class="mic-flash" id="micFlash"></div>
       <div class="mic-bar"><div class="mic-fill" id="micFill"></div><div class="mic-thresh" id="micTh" style="left:9%"></div></div>
@@ -483,25 +488,78 @@ function removeMeasure() { if (isPlaying || measures.length <= 1) return; measur
 /* ═══════════════════════════════════════════
    AUDIO INIT
    ═══════════════════════════════════════════ */
+var micSrcNode = null; // keep reference so we can disconnect on switch
+
 async function ensureInit() {
   if (isInit) return true;
   try {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     if (audioCtx.state === 'suspended') await audioCtx.resume();
-    micStream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation:false, noiseSuppression:false, autoGainControl:false }
-    });
-    var src = audioCtx.createMediaStreamSource(micStream);
-    analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 1024;
-    analyser.smoothingTimeConstant = 0;
-    src.connect(analyser);
-    micData = new Uint8Array(analyser.fftSize);
+    await connectMic();
     startMicMeter();
     isInit = true;
     document.getElementById('status').innerHTML = '<span class="s-dot on"></span>Mic active';
+    await populateMicList();
     return true;
   } catch(e) { alert('Mic access required: ' + e.message); return false; }
+}
+
+async function connectMic(deviceId) {
+  // Stop previous stream tracks
+  if (micStream) { micStream.getTracks().forEach(function(t) { t.stop(); }); }
+  if (micSrcNode) { micSrcNode.disconnect(); micSrcNode = null; }
+  var constraints = { audio: { echoCancellation:false, noiseSuppression:false, autoGainControl:false } };
+  if (deviceId) constraints.audio.deviceId = { exact: deviceId };
+  micStream = await navigator.mediaDevices.getUserMedia(constraints);
+  micSrcNode = audioCtx.createMediaStreamSource(micStream);
+  if (!analyser) {
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 1024;
+    analyser.smoothingTimeConstant = 0;
+  }
+  micSrcNode.connect(analyser);
+  micData = new Uint8Array(analyser.fftSize);
+  // Reset energy baseline on switch
+  energyBaseline = 0;
+  hitArmed = true;
+}
+
+async function populateMicList() {
+  try {
+    var devices = await navigator.mediaDevices.enumerateDevices();
+    var sel = document.getElementById('micSel');
+    var saved = localStorage.getItem('tt_mic') || '';
+    sel.innerHTML = '<option value="">Default</option>';
+    var audioInputs = devices.filter(function(d) { return d.kind === 'audioinput'; });
+    audioInputs.forEach(function(d, i) {
+      var opt = document.createElement('option');
+      opt.value = d.deviceId;
+      opt.textContent = d.label || ('Mic ' + (i + 1));
+      if (d.deviceId === saved) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    // If we have a saved device, switch to it on first init
+    if (saved && sel.value === saved) {
+      await connectMic(saved);
+    }
+  } catch(e) { /* enumeration not supported, keep default */ }
+}
+
+async function switchMic() {
+  var sel = document.getElementById('micSel');
+  var deviceId = sel.value;
+  localStorage.setItem('tt_mic', deviceId);
+  if (!isInit) return; // will be applied on next ensureInit
+  try {
+    await connectMic(deviceId || undefined);
+    // Re-populate in case labels changed after permission grant
+    await populateMicList();
+    document.getElementById('status').innerHTML = '<span class="s-dot on"></span>Mic active';
+  } catch(e) {
+    alert('Could not switch mic: ' + e.message);
+    sel.value = '';
+    localStorage.removeItem('tt_mic');
+  }
 }
 
 /* ═══════════════════════════════════════════
@@ -1523,6 +1581,12 @@ function clearResults() {
       navigator.wakeLock.request('screen').then(function(l) { wakeLock = l; }).catch(function() {});
     }
   });
+  // Update mic list when devices change (plug/unplug)
+  if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+    navigator.mediaDevices.addEventListener('devicechange', function() {
+      if (isInit) populateMicList();
+    });
+  }
 })();
 </script>
 </body>
