@@ -45,7 +45,11 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .pat-controls { display:flex; gap:6px; }
 .pat-btn { font-size:10px; font-weight:500; padding:3px 8px; background:var(--surface2); border:1px solid var(--border); border-radius:4px; color:var(--text-dim); cursor:pointer; text-transform:none; letter-spacing:0; }
 .pat-btn:active { background:var(--border); }
-#patContainer { overflow-x:auto; overflow-y:visible; }
+#patContainer { overflow-x:auto; overflow-y:visible; position:relative; }
+.count-ov { position:absolute; inset:0; background:rgba(18,18,22,0.75); border-radius:8px; display:flex; align-items:center; justify-content:center; z-index:10; pointer-events:none; }
+.count-ov-beat { font-family:'JetBrains Mono',monospace; font-size:48px; font-weight:700; color:var(--accent); opacity:0.9; }
+.count-ov-beat.pulse { animation:countPulse 0.3s ease-out; }
+@keyframes countPulse { 0% { transform:scale(1.3); opacity:1; } 100% { transform:scale(1); opacity:0.9; } }
 .measure-row { display:flex; align-items:flex-start; gap:6px; margin-bottom:10px; padding-bottom:10px; }
 .measure-row:last-child { margin-bottom:0; padding-bottom:0; }
 .measure-label { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--text-dim); width:18px; min-width:18px; text-align:center; padding-top:14px; }
@@ -229,14 +233,15 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
   <div class="section">
     <div class="section-title">Audio Output</div>
     <div class="mode-toggle">
-      <div class="mode-btn active" id="modeW" onclick="setMode('w')">&#128268; Wired / Speaker</div>
+      <div class="mode-btn active" id="modeW" onclick="setMode('w')">&#128268; Wired</div>
+      <div class="mode-btn" id="modeS" onclick="setMode('s')">&#128266; Speaker</div>
       <div class="mode-btn" id="modeBT" onclick="setMode('bt')">&#127911; Bluetooth</div>
     </div>
     <div class="cal-btn" onclick="startCalib()">&#9201; Calibrate Latency</div>
     <div class="sl-row" style="margin-top:12px">
       <span class="sl-label">Volume</span>
-      <input type="range" class="sl-ctrl" id="volS" min="0" max="100" value="80">
-      <span class="sl-label" id="volV" style="min-width:28px">80%</span>
+      <input type="range" class="sl-ctrl" id="volS" min="0" max="150" value="80">
+      <span class="sl-label" id="volV" style="min-width:36px">80%</span>
     </div>
     <div class="lat-row">
       <div class="lat-wrap"><input type="number" class="lat-input" id="latIn" value="0" step="1"><span class="lat-unit">ms</span></div>
@@ -281,6 +286,11 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
   <div class="ov-desc" id="calDesc">Clap or hit your pad along with the clicks. The mic detects hits automatically.</div>
   <div class="cv" id="calVis"><div class="cv-lbl">Hits</div><div class="cv-cnt" id="calCnt">0</div></div>
   <div class="cm-bar"><div class="cm-fill" id="calMF"></div></div>
+  <div class="sl-row" style="margin:8px 0 4px">
+    <span class="sl-label" style="color:var(--text)">Vol</span>
+    <input type="range" class="sl-ctrl" id="calVolS" min="0" max="150" value="80">
+    <span class="sl-label" id="calVolV" style="min-width:36px">80%</span>
+  </div>
   <div class="c-prog" id="calProg">Tap "Start" to begin</div>
   <div class="c-res" id="calRes"><div class="c-res-v" id="calResV">0 ms</div><div class="c-res-l">Detected latency compensation</div></div>
   <div class="c-acts" id="calAct" style="display:none">
@@ -1176,6 +1186,13 @@ function startMetro() {
   document.getElementById('btnStop').style.display = '';
   var statusEl = document.getElementById('status');
 
+  // Count-off overlay on pattern area
+  var patC = document.getElementById('patContainer');
+  var cOv = document.createElement('div');
+  cOv.className = 'count-ov';
+  cOv.innerHTML = '<div class="count-ov-beat" id="countBeat"></div>';
+  patC.appendChild(cOv);
+
   for (var ci = 0; ci < countBeats; ci++) {
     (function(beatIdx) {
       var delay = (countStart + beatIdx * beatDur - audioCtx.currentTime) * 1000;
@@ -1184,6 +1201,8 @@ function startMetro() {
         var barNum = Math.floor(beatIdx / tsTop) + 1;
         var beatInBar = (beatIdx % tsTop) + 1;
         statusEl.innerHTML = '<span class="s-dot on"></span>Count-off: ' + barNum + '.' + beatInBar;
+        var cb = document.getElementById('countBeat');
+        if (cb) { cb.textContent = beatInBar; cb.classList.remove('pulse'); void cb.offsetWidth; cb.classList.add('pulse'); }
       }, Math.max(0, delay));
     })(ci);
   }
@@ -1197,6 +1216,8 @@ function startMetro() {
   var countDelay = (loopStart - audioCtx.currentTime) * 1000;
   setTimeout(function() {
     if (!isPlaying) return;
+    // Remove count-off overlay
+    if (cOv.parentNode) cOv.parentNode.removeChild(cOv);
     var calInfo = latMs !== 0 ? ' (cal: '+latMs+'ms)' : '';
     statusEl.innerHTML = '<span class="s-dot on"></span>Playing' + calInfo;
     startHitDet();
@@ -1247,6 +1268,9 @@ function stopMetro() {
   if (wakeLock) { wakeLock.release(); wakeLock = null; }
   if (schedT) { clearInterval(schedT); schedT = null; }
   stopHitDet();
+  // Remove count-off overlay if still showing
+  var cOv = document.querySelector('.count-ov');
+  if (cOv) cOv.parentNode.removeChild(cOv);
   document.querySelectorAll('.beat-col').forEach(function(el) { el.classList.remove('active'); });
   document.getElementById('btnStop').style.display = 'none';
   document.getElementById('btnGo').style.display = '';
@@ -1349,18 +1373,21 @@ function clearMarkers() {
 function setMode(m) {
   aMode = m;
   document.getElementById('modeW').className = 'mode-btn' + (m === 'w' ? ' active' : '');
+  document.getElementById('modeS').className = 'mode-btn' + (m === 's' ? ' active' : '');
   document.getElementById('modeBT').className = 'mode-btn' + (m === 'bt' ? ' active' : '');
   loadLat();
 }
 
+function latKey() { return aMode === 'bt' ? 'tt_bt' : aMode === 's' ? 'tt_s' : 'tt_w'; }
+function latDefault() { return aMode === 'w' ? -51 : 0; }
+
 function loadLat() {
-  var k = aMode === 'bt' ? 'tt_bt' : 'tt_w';
-  var v = localStorage.getItem(k);
-  latMs = v !== null ? parseInt(v) : 0;
+  var v = localStorage.getItem(latKey());
+  latMs = v !== null ? parseInt(v) : latDefault();
   document.getElementById('latIn').value = latMs;
 }
 
-function saveLat() { localStorage.setItem(aMode === 'bt' ? 'tt_bt' : 'tt_w', latMs.toString()); }
+function saveLat() { localStorage.setItem(latKey(), latMs.toString()); }
 function adjLat(d) { latMs += d; document.getElementById('latIn').value = latMs; saveLat(); }
 
 async function startCalib() {
@@ -1561,13 +1588,17 @@ function clearResults() {
   if (sv !== null) clickVol = parseInt(sv);
   document.getElementById('volS').value = clickVol;
   document.getElementById('volV').textContent = clickVol + '%';
+  document.getElementById('calVolS').value = clickVol;
+  document.getElementById('calVolV').textContent = clickVol + '%';
   loadLat();
   buildPat();
   document.getElementById('bpmVal').textContent = bpm;
   document.getElementById('bpmSlider').addEventListener('input', function(e) { bpm = parseInt(e.target.value); document.getElementById('bpmVal').textContent = bpm; });
   document.getElementById('sensS').addEventListener('input', function(e) { sens = parseInt(e.target.value); document.getElementById('sensV').textContent = sens; document.getElementById('micTh').style.left = (sens/128*100)+'%'; });
   document.getElementById('winS').addEventListener('input', function(e) { hitWin = parseInt(e.target.value); document.getElementById('winV').textContent = hitWin+'ms'; });
-  document.getElementById('volS').addEventListener('input', function(e) { clickVol = parseInt(e.target.value); document.getElementById('volV').textContent = clickVol + '%'; localStorage.setItem('tt_vol', clickVol); });
+  function syncVol(v) { clickVol = v; document.getElementById('volS').value = v; document.getElementById('volV').textContent = v + '%'; document.getElementById('calVolS').value = v; document.getElementById('calVolV').textContent = v + '%'; localStorage.setItem('tt_vol', v); }
+  document.getElementById('volS').addEventListener('input', function(e) { syncVol(parseInt(e.target.value)); });
+  document.getElementById('calVolS').addEventListener('input', function(e) { syncVol(parseInt(e.target.value)); });
   document.getElementById('latIn').addEventListener('change', function(e) { latMs = parseInt(e.target.value)||0; saveLat(); });
   document.getElementById('latIn').addEventListener('input', function(e) { latMs = parseInt(e.target.value)||0; });
   document.addEventListener('visibilitychange', function() {
