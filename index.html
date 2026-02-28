@@ -585,9 +585,13 @@ function getEnergy() {
 function isHitDetected() {
   var p = getPeak();
   var e = getEnergy();
-  var spike = energyBaseline > 0.5 ? (e / energyBaseline) > SPIKE_RATIO : e > 2;
+  // Spike detection only activates once baseline is established
+  var spike = false;
+  if (energyBaseline > 0.5) {
+    spike = (e / energyBaseline) > SPIKE_RATIO;
+  }
   var peakHit = p > sens;
-  // Update baseline with slow decay (only when not spiking)
+  // Always update baseline when not spiking so it can bootstrap from 0
   if (!spike) energyBaseline = energyBaseline * EB_DECAY + e * (1 - EB_DECAY);
   return {hit: peakHit || spike, peak: p, energy: e};
 }
@@ -597,11 +601,13 @@ function startMicMeter() {
   if (micMeterI) return;
   micMeterI = setInterval(function() {
     if (!analyser) return;
-    var d = isHitDetected();
-    var pct = Math.min(100, (d.peak / 128) * 100);
+    // Meter only reads levels — does NOT call isHitDetected() to avoid
+    // double-updating energy baseline and triggering phantom hits
+    var p = getPeak();
+    var pct = Math.min(100, (p / 128) * 100);
     document.getElementById('micFill').style.width = pct + '%';
-    document.getElementById('micPk').textContent = d.peak;
-    if (d.hit) {
+    document.getElementById('micPk').textContent = p;
+    if (p > sens) {
       var f = document.getElementById('micFlash');
       f.classList.add('on');
       clearTimeout(mfTO);
@@ -1312,8 +1318,11 @@ function startHitDet() {
         hitArmed = false;
         procHit(now);
       }
-    } else if ((d.peak < sens * RA && d.energy < energyBaseline * 1.5) || (nowMs - lastHit) > ML) {
-      hitArmed = true;
+    } else {
+      // Re-arm when signal drops OR timeout expires
+      var peakDropped = d.peak < sens * RA;
+      var energyDropped = energyBaseline < 0.5 || d.energy < energyBaseline * 1.5;
+      if ((peakDropped && energyDropped) || (nowMs - lastHit) > ML) hitArmed = true;
     }
   }, 3);
 }
@@ -1428,8 +1437,10 @@ function beginCalib() {
         vis.classList.add('flash');
         setTimeout(function() { vis.classList.remove('flash'); }, 120);
       }
-    } else if ((d.peak < sens * RA && d.energy < energyBaseline * 1.5) || (nowMs - cLH) > ML) {
-      cArmed = true;
+    } else {
+      var peakDropped = d.peak < sens * RA;
+      var energyDropped = energyBaseline < 0.5 || d.energy < energyBaseline * 1.5;
+      if ((peakDropped && energyDropped) || (nowMs - cLH) > ML) cArmed = true;
     }
   }, 3);
 }
