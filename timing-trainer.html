@@ -448,7 +448,7 @@ function svgN(type, w, h, fillOverride, beamed) {
    STATE
    ═══════════════════════════════════════════ */
 var audioCtx = null, micStream = null, analyser = null, micData = null, masterGain = null;
-var isPlaying = false, isInit = false, wakeLock = null;
+var isPlaying = false, isInit = false, wakeLock = null, pendingGo = false;
 var bpm = 100, tsTop = 4, tsBot = 4, aMode = 'w', latMs = 0, clickVol = 80;
 var measures = []; // array of arrays: [[{t,dur},...],...]
 var sens = 12, hitWin = 120, MR = 35, RA = 0.3, ML = 150; // min retrigger ms, re-arm fraction, max lockout ms
@@ -1129,7 +1129,12 @@ function tickToSec(tick) {
   return tick / 24 * (60.0 / bpm);
 }
 
-async function handleGo() { if (isPlaying) return; if (!(await ensureInit())) return; startMetro(); }
+async function handleGo() {
+  if (isPlaying) return;
+  if (!(await ensureInit())) return;
+  if (latMs === 0) { pendingGo = true; startCalib(); return; }
+  startMetro();
+}
 function handleStop() { if (!isPlaying) return; stopMetro(); }
 
 function playCountClick(t) {
@@ -1468,7 +1473,11 @@ function analyzeCalib() {
   document.getElementById('calAct').style.display = 'flex';
 }
 
-function applyCalib() { latMs = cDet; document.getElementById('latIn').value = latMs; saveLat(); closeCalib(); }
+function applyCalib() {
+  var shouldGo = pendingGo;
+  latMs = cDet; document.getElementById('latIn').value = latMs; saveLat(); closeCalib();
+  if (shouldGo) startMetro();
+}
 
 function retryCalib() {
   cSt = 'idle';
@@ -1485,6 +1494,7 @@ function retryCalib() {
 
 function closeCalib() {
   cSt = 'idle';
+  pendingGo = false;
   if (cSch) { clearInterval(cSch); cSch = null; }
   if (cMP) { clearInterval(cMP); cMP = null; }
   document.getElementById('calOv').classList.remove('show');
