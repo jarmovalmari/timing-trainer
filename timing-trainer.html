@@ -161,6 +161,8 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .np-actions { display:flex; gap:6px; margin-top:12px; border-top:1px solid var(--border); padding-top:12px; }
 .np-act { flex:1; padding:10px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; font-size:11px; font-weight:500; cursor:pointer; text-align:center; color:var(--text-dim); }
 .np-act:active { background:var(--border); }
+@keyframes npShake { 0%,100%{transform:translateY(0)} 25%{transform:translateY(-3px)} 75%{transform:translateY(3px)} }
+#npSheet.shake { animation: npShake 0.3s ease; }
 
 /* Randomize popup */
 .rand-popup { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:20px; z-index:90; display:none; text-align:center; min-width:260px; }
@@ -274,6 +276,7 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
         <div class="pat-btn" onclick="addMeasure()">+ Line</div>
         <div class="pat-btn" onclick="removeMeasure()">&#8722; Line</div>
         <div class="pat-btn" onclick="showRandPopup()">&#127922; Random</div>
+        <div class="pat-btn" onclick="clearPattern()">Clear</div>
       </div>
     </div>
     <div id="resultStrip" style="display:none"></div>
@@ -556,6 +559,7 @@ function defaultMeasure() {
 
 function addMeasure() { measures.push(defaultMeasure()); renderPat(); if (isPlaying) restartMetro(); }
 function removeMeasure() { if (measures.length <= 1) return; measures.pop(); renderPat(); if (isPlaying) restartMetro(); }
+function clearPattern() { measures = measures.map(function() { return defaultMeasure(); }); renderPat(); if (isPlaying) restartMetro(); }
 
 /* ═══════════════════════════════════════════
    AUDIO INIT
@@ -834,9 +838,9 @@ function renderPat() {
       col.dataset.note = ni;
       col.dataset.noteType = note.t;
       var widthPx = Math.max(26, Math.round(note.dur / 24 * 48));
+      if (note.t === 't' || note.t === 'tr') widthPx = Math.max(32, widthPx);
       col.style.minWidth = widthPx + 'px';
-      var svgW = widthPx <= 28 ? 22 : 32;
-      var svgH = widthPx <= 28 ? 28 : 40;
+      var svgW = 26, svgH = 32;
 
       var sym = document.createElement('div');
       sym.className = 'note-sym';
@@ -900,8 +904,7 @@ function renderPat() {
         if (group.length >= 2) {
           beamGroups[bi] = group;
           group.forEach(function(idx) {
-            var bw = parseInt(cols[idx].el.style.minWidth) <= 28 ? 22 : 32;
-            var bh = bw <= 22 ? 28 : 40;
+            var bw = 26, bh = 32;
             cols[idx].sym.innerHTML = svgN(cols[idx].note.t, bw, bh, undefined, true);
           });
         }
@@ -916,8 +919,7 @@ function renderPat() {
       si = parseInt(si);
       if (tripGroups[si] === 'et') {
         for (var j = 0; j < 3; j++) {
-          var tw = parseInt(cols[si + j].el.style.minWidth) <= 28 ? 22 : 32;
-          var th = tw <= 22 ? 28 : 40;
+          var tw = 26, th = 32;
           cols[si + j].sym.innerHTML = svgN('et', tw, th, undefined, true);
         }
       }
@@ -1061,8 +1063,7 @@ function openNotePicker(mi, ni) {
 
   var groups = [
     {title:'Notes', types:['w','h','q','e','s','t']},
-    {title:'Rests', types:['wr','hr','qr','er','sr','tr']},
-    {title:'Triplets', types:['qt','et']}
+    {title:'Rests', types:['wr','hr','qr','er','sr','tr']}
   ];
 
   groups.forEach(function(g) {
@@ -1160,8 +1161,10 @@ function pickNote(newType) {
         }
       }
     } else {
-      // Can't fit — ignore
-      closeNotePicker();
+      // Can't fit — shake feedback
+      var sheet = document.getElementById('npSheet');
+      sheet.classList.add('shake');
+      setTimeout(function() { sheet.classList.remove('shake'); }, 300);
       return;
     }
   }
@@ -1215,6 +1218,16 @@ function fillWithRests(ticks) {
     if (!found) break; // safety: no rest fits remaining ticks
   }
   return fills;
+}
+
+function trimAndPad(mi) {
+  var m = measures[mi], cap = measCap();
+  var sum = 0;
+  for (var i = 0; i < m.length; i++) sum += m[i].dur;
+  if (sum < cap) {
+    var fills = fillWithRests(cap - sum);
+    for (var i = 0; i < fills.length; i++) m.push(fills[i]);
+  }
 }
 
 function npSplit() {
@@ -1271,7 +1284,13 @@ function npToRest() {
 
 function npDelete() {
   if (npMi < 0) return;
-  npToRest(); // delete = convert to rest
+  var m = measures[npMi];
+  if (m.length <= 1) { npToRest(); return; }
+  m.splice(npNi, 1);
+  trimAndPad(npMi);
+  renderPat();
+  closeNotePicker();
+  if (isPlaying) restartMetro();
 }
 
 /* ═══════════════════════════════════════════
@@ -1526,14 +1545,21 @@ function rebuildGridLive() {
   if (isPlaying && audioCtx) nextGN = audioCtx.currentTime;
 }
 
+var _restartTimer = null;
 function restartMetro() {
   if (!isPlaying) return;
-  var savedH = sessH.slice();
-  var savedStart = sessStart;
-  var savedBpm = sessBpm;
-  stopMetro();
-  sessH = savedH; sessStart = savedStart; sessBpm = savedBpm;
-  startMetro(true);
+  if (_restartTimer) clearTimeout(_restartTimer);
+  _restartTimer = setTimeout(function() {
+    _restartTimer = null;
+    if (!isPlaying) return;
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    var savedH = sessH.slice();
+    var savedStart = sessStart;
+    var savedBpm = sessBpm;
+    stopMetro();
+    sessH = savedH; sessStart = savedStart; sessBpm = savedBpm;
+    startMetro(true);
+  }, 50);
 }
 
 function hlBeat(mi, ni, time) {
