@@ -34,12 +34,13 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .bpm-preset:active { background:var(--border); }
 
 /* Time Sig */
-.ts-row { display:flex; align-items:center; gap:12px; justify-content:center; }
-.ts-val { font-family:'JetBrains Mono',monospace; font-size:28px; font-weight:700; width:40px; text-align:center; }
-.ts-slash { font-size:28px; color:var(--text-dim); }
+.ts-row { display:flex; align-items:center; gap:8px; }
+.ts-val { font-family:'JetBrains Mono',monospace; font-size:22px; font-weight:700; width:30px; text-align:center; }
+.ts-slash { font-size:22px; color:var(--text-dim); }
 .ts-btns { display:flex; flex-direction:column; gap:2px; }
-.ts-btn { width:28px; height:22px; display:flex; align-items:center; justify-content:center; background:var(--surface2); border:1px solid var(--border); border-radius:4px; color:var(--text-dim); font-size:14px; cursor:pointer; }
+.ts-btn { width:24px; height:18px; display:flex; align-items:center; justify-content:center; background:var(--surface2); border:1px solid var(--border); border-radius:4px; color:var(--text-dim); font-size:12px; cursor:pointer; }
 .ts-btn:active { background:var(--border); }
+.click-sel { width:100%; background:var(--surface2); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:8px 28px 8px 10px; font-family:'DM Sans',sans-serif; font-size:13px; font-weight:500; outline:none; -webkit-appearance:none; appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 10px center; }
 
 /* Pattern */
 .pat-controls { display:flex; gap:6px; }
@@ -54,26 +55,26 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .measure-row:last-child { margin-bottom:0; padding-bottom:0; }
 .measure-label { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--text-dim); width:18px; min-width:18px; text-align:center; padding-top:14px; }
 .pattern-bar { display:flex; align-items:flex-start; gap:0; flex-wrap:wrap; flex:1; }
-.beat-col { display:flex; flex-direction:column; align-items:center; gap:1px; padding:4px 2px; border-radius:6px; transition:background 0.1s; cursor:pointer; position:relative; }
+.beat-col { display:flex; flex-direction:column; align-items:center; gap:1px; padding:3px 1px; border-radius:6px; transition:background 0.1s; cursor:pointer; position:relative; }
 .beat-col.active { background:rgba(255,255,255,0.08); }
-.beat-sep { width:1px; height:52px; background:var(--border); margin:0 2px; align-self:center; flex-shrink:0; }
-.note-sym { display:flex; align-items:center; justify-content:center; height:40px; }
+.beat-sep { width:1px; height:42px; background:var(--border); margin:0 1px; align-self:center; flex-shrink:0; }
+.note-sym { display:flex; align-items:center; justify-content:center; height:32px; }
 .note-sym svg { transition:transform 0.1s; }
 .beat-col:active .note-sym svg { transform:scale(0.9); }
 .beat-col.active .note-sym svg { transform:scale(1.08); }
 .note-label { font-family:'JetBrains Mono',monospace; font-size:8px; color:var(--text-dim); }
-.hit-marker { height:18px; position:relative; width:100%; margin-top:2px; }
-.hit-track { position:absolute; top:8px; left:4px; right:4px; height:1px; background:var(--border); }
-.hit-center { position:absolute; top:5px; left:50%; width:1px; height:7px; background:var(--border); transform:translateX(-0.5px); }
-.hit-dot { position:absolute; top:4px; left:50%; width:8px; height:8px; border-radius:50%; transform:translateX(-4px); display:none; }
+.hit-marker { height:14px; position:relative; width:100%; margin-top:1px; }
+.hit-track { position:absolute; top:6px; left:2px; right:2px; height:1px; background:var(--border); }
+.hit-center { position:absolute; top:3px; left:50%; width:1px; height:7px; background:var(--border); transform:translateX(-0.5px); }
+.hit-dot { position:absolute; top:2px; left:50%; width:8px; height:8px; border-radius:50%; transform:translateX(-4px); display:none; }
 .hit-dot.show { display:block; }
 .cg { color:var(--green); } .cr { color:var(--red); } .cb { color:var(--blue); }
 
 /* Bar lines */
-.bar-line { width:2px; height:52px; background:var(--text-dim); margin:0 4px; align-self:center; flex-shrink:0; }
-.bar-line-double { display:flex; gap:3px; align-self:center; flex-shrink:0; margin:0 4px; }
-.bar-line-double .bl-thin { width:1.5px; height:52px; background:var(--text-dim); }
-.bar-line-double .bl-thick { width:4px; height:52px; background:var(--text-dim); border-radius:1px; }
+.bar-line { width:2px; height:42px; background:var(--text-dim); margin:0 3px; align-self:center; flex-shrink:0; }
+.bar-line-double { display:flex; gap:3px; align-self:center; flex-shrink:0; margin:0 3px; }
+.bar-line-double .bl-thin { width:1.5px; height:42px; background:var(--text-dim); }
+.bar-line-double .bl-thick { width:4px; height:42px; background:var(--text-dim); border-radius:1px; }
 
 /* Beam group */
 .beam-group { display:flex; align-items:flex-start; position:relative; }
@@ -204,6 +205,14 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .status { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-dim); text-align:center; padding:8px 0; }
 .s-dot { display:inline-block; width:6px; height:6px; border-radius:50%; margin-right:4px; vertical-align:middle; }
 .s-dot.off { background:var(--text-dim); } .s-dot.on { background:var(--green); }
+
+/* Click Grid */
+.grid-sub-pills { display:flex; gap:4px; flex:1; }
+.grid-pill { font-size:12px; padding:3px 8px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text-dim); cursor:pointer; font-family:'JetBrains Mono',monospace; text-align:center; }
+.grid-pill.active { background:var(--accent); color:var(--bg); border-color:var(--accent); }
+.grid-pos-row { display:flex; gap:6px; flex:1; }
+.grid-pos-btn { width:28px; height:28px; border-radius:50%; border:2px solid var(--border); background:transparent; color:var(--text-dim); font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.15s; }
+.grid-pos-btn.on { background:var(--accent); color:var(--bg); border-color:var(--accent); }
 </style>
 </head>
 <body>
@@ -222,12 +231,40 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
       <div class="bpm-preset" onclick="setBpm(140)">140</div><div class="bpm-preset" onclick="setBpm(180)">180</div>
     </div>
   </div>
-  <div class="section">
-    <div class="section-title">Time Signature</div>
-    <div class="ts-row">
-      <div class="ts-btns"><div class="ts-btn" onclick="adjTS('t',1)">&#9650;</div><div class="ts-btn" onclick="adjTS('t',-1)">&#9660;</div></div>
-      <div class="ts-val" id="tsTop">4</div><div class="ts-slash">/</div><div class="ts-val" id="tsBot">4</div>
-      <div class="ts-btns"><div class="ts-btn" onclick="adjTS('b',1)">&#9650;</div><div class="ts-btn" onclick="adjTS('b',-1)">&#9660;</div></div>
+  <div style="display:flex; gap:12px;">
+    <div class="section" style="flex:1; margin-bottom:12px;">
+      <div class="section-title">Time</div>
+      <div class="ts-row" style="justify-content:center">
+        <div class="ts-btns"><div class="ts-btn" onclick="adjTS('t',1)">&#9650;</div><div class="ts-btn" onclick="adjTS('t',-1)">&#9660;</div></div>
+        <div class="ts-val" id="tsTop">4</div><div class="ts-slash">/</div><div class="ts-val" id="tsBot">4</div>
+        <div class="ts-btns"><div class="ts-btn" onclick="adjTS('b',1)">&#9650;</div><div class="ts-btn" onclick="adjTS('b',-1)">&#9660;</div></div>
+      </div>
+    </div>
+    <div class="section" style="flex:1; margin-bottom:12px;">
+      <div class="section-title">Click</div>
+      <select id="clickModeSel" class="click-sel" onchange="setClickMode(this.value)">
+        <option value="pattern">Pattern</option>
+        <option value="grid">Grid</option>
+        <option value="both">Both</option>
+      </select>
+      <div id="gridCfg" style="display:none; margin-top:8px">
+        <div class="grid-sub-pills" id="gridSubPills" style="margin-bottom:6px">
+          <div class="grid-pill" id="gp_q" onclick="setGridSub('q')">&#9833;</div>
+          <div class="grid-pill" id="gp_8" onclick="setGridSub('8')">&#9834;</div>
+          <div class="grid-pill active" id="gp_16" onclick="setGridSub('16')">&#9836;</div>
+          <div class="grid-pill" id="gp_8t" onclick="setGridSub('8t')">&#9834;&#179;</div>
+        </div>
+        <div id="gridPosToggles" class="grid-pos-row"></div>
+      </div>
+      <div id="muteRow" style="margin-top:8px">
+        <div style="display:flex; align-items:center; gap:6px">
+          <input type="checkbox" id="clickMuteChk" onchange="setClickMute(this.checked)" style="margin:0; cursor:pointer">
+          <label for="clickMuteChk" style="font-size:11px; color:var(--text-dim); cursor:pointer">Mute</label>
+          <span id="clickMuteLbl" style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-dim); margin-left:auto">30%</span>
+        </div>
+        <input type="range" id="clickMuteRng" min="5" max="95" value="30" step="5"
+               class="sl-ctrl" oninput="setClickMutePct(this.value)" style="width:100%; margin-top:4px" disabled>
+      </div>
     </div>
   </div>
   <div class="section">
@@ -370,6 +407,11 @@ var NT = {
   qt: {dur:16, label:'Q Trip',    rest:false, trip:true},
   et: {dur:8,  label:'8th Trip',  rest:false, trip:true},
 };
+var GROUP_TYPES = {
+  '4s':  {notes:[{t:'s',dur:6},{t:'s',dur:6},{t:'s',dur:6},{t:'s',dur:6}], totalDur:24, label:'4\u00d716th'},
+  '3et': {notes:[{t:'et',dur:8},{t:'et',dur:8},{t:'et',dur:8}], totalDur:24, label:'8th Trip'},
+  '3qt': {notes:[{t:'qt',dur:16},{t:'qt',dur:16},{t:'qt',dur:16}], totalDur:48, label:'Q Trip'}
+};
 
 /* SVG Note Rendering — clean standard-proportioned symbols */
 function svgN(type, w, h, fillOverride, beamed) {
@@ -478,6 +520,14 @@ var lastHit = 0, hitArmed = true, micPoll = null, micMeterI = null;
 var schedT = null, nextNote = 0, curSub = 0, sBeats = [];
 var LA = 100, SI = 20;
 var sessH = [], sessStart = 0, sessBpm = 0;
+// Click grid state
+var clickMode = 'pattern'; // 'pattern' | 'grid' | 'both'
+var gridSub = '16';        // 'q' | '8' | '16' | '8t'
+var gridPos = [1,1,1,1];   // which positions are ON (length varies by subdivision)
+// Live grid schedule (globals for hot-swap during playback)
+var gSched = [], curGS = 0, nextGN = 0, gLoopCount = 0;
+var metroLoopStart = 0, metroLoopDur = 0;
+var clickMute = false, clickMutePct = 30;
 // Note picker state
 var npMi = -1, npNi = -1;
 // Calibration
@@ -504,8 +554,8 @@ function defaultMeasure() {
   return m;
 }
 
-function addMeasure() { if (isPlaying) return; measures.push(defaultMeasure()); renderPat(); }
-function removeMeasure() { if (isPlaying || measures.length <= 1) return; measures.pop(); renderPat(); }
+function addMeasure() { measures.push(defaultMeasure()); renderPat(); if (isPlaying) restartMetro(); }
+function removeMeasure() { if (measures.length <= 1) return; measures.pop(); renderPat(); if (isPlaying) restartMetro(); }
 
 /* ═══════════════════════════════════════════
    AUDIO INIT
@@ -624,18 +674,117 @@ function playClick(t, acc) {
   o.start(t); o.stop(t + 0.05);
 }
 
+function playGridClick(t, isFirstOfBeat) {
+  if (!audioCtx) return;
+  var vol = clickVol / 100;
+  var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+  o.connect(g); g.connect(masterGain);
+  o.frequency.value = isFirstOfBeat ? 1000 : 600;
+  g.gain.setValueAtTime((isFirstOfBeat ? 1.2 : 0.7) * vol, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+  o.start(t); o.stop(t + 0.04);
+}
+
+/* ═══════════════════════════════════════════
+   CLICK GRID
+   ═══════════════════════════════════════════ */
+var gridSubCounts = { q: 1, '8': 2, '16': 4, '8t': 3 };
+
+function setClickMode(mode) {
+  clickMode = mode;
+  document.getElementById('clickModeSel').value = mode;
+  document.getElementById('gridCfg').style.display = (mode === 'pattern') ? 'none' : '';
+  localStorage.setItem('tt_cm', mode);
+  if (mode !== 'pattern') renderGridPos();
+  if (isPlaying) rebuildGridLive();
+}
+
+function setClickMute(on) {
+  clickMute = on;
+  document.getElementById('clickMuteChk').checked = on;
+  document.getElementById('clickMuteRng').disabled = !on;
+  localStorage.setItem('tt_cmu', on ? '1' : '0');
+}
+function setClickMutePct(val) {
+  clickMutePct = parseInt(val);
+  document.getElementById('clickMuteLbl').textContent = val + '%';
+  document.getElementById('clickMuteRng').value = val;
+  localStorage.setItem('tt_cmp', val);
+}
+
+function setGridSub(sub, skipReset) {
+  gridSub = sub;
+  if (!skipReset) {
+    var cnt = gridSubCounts[sub];
+    gridPos = [];
+    for (var i = 0; i < cnt; i++) gridPos.push(1);
+  }
+  // Update pill active states
+  ['q', '8', '16', '8t'].forEach(function(s) {
+    document.getElementById('gp_' + s).classList.toggle('active', s === sub);
+  });
+  renderGridPos();
+  if (!skipReset) {
+    localStorage.setItem('tt_gs', sub);
+    localStorage.setItem('tt_gp', JSON.stringify(gridPos));
+  }
+  if (isPlaying) rebuildGridLive();
+}
+
+function toggleGridPos(i) {
+  // Don't allow turning off the last active position
+  var onCount = gridPos.reduce(function(a, b) { return a + b; }, 0);
+  if (gridPos[i] && onCount <= 1) return;
+  gridPos[i] = gridPos[i] ? 0 : 1;
+  renderGridPos();
+  localStorage.setItem('tt_gp', JSON.stringify(gridPos));
+  if (isPlaying) rebuildGridLive();
+}
+
+function renderGridPos() {
+  var c = document.getElementById('gridPosToggles');
+  if (!c) return;
+  c.innerHTML = '';
+  for (var i = 0; i < gridPos.length; i++) {
+    var btn = document.createElement('div');
+    btn.className = 'grid-pos-btn' + (gridPos[i] ? ' on' : '');
+    btn.textContent = (i + 1);
+    btn.setAttribute('onclick', 'toggleGridPos(' + i + ')');
+    c.appendChild(btn);
+  }
+}
+
+function buildGridSched() {
+  var s = [];
+  var ticksPerBeat = Math.round(96 / tsBot); // 24 for 4/4
+  var subTicks = { q: ticksPerBeat, '8': ticksPerBeat / 2, '16': ticksPerBeat / 4, '8t': Math.round(ticksPerBeat / 3) };
+  var subInterval = subTicks[gridSub];
+  if (!subInterval || subInterval < 1) return s;
+  var posCount = gridPos.length;
+  var totalTicks = measures.length * measCap();
+
+  for (var tk = 0; tk < totalTicks; tk += subInterval) {
+    var beatTick = tk % ticksPerBeat;
+    var posInBeat = Math.round(beatTick / subInterval);
+    if (posInBeat < posCount && gridPos[posInBeat]) {
+      s.push({ tickPos: tk, acc: (beatTick === 0) });
+    }
+  }
+  return s;
+}
+
 /* ═══════════════════════════════════════════
    BPM & TIME SIGNATURE
    ═══════════════════════════════════════════ */
 function setBpm(v) { bpm = v; document.getElementById('bpmSlider').value = v; document.getElementById('bpmVal').textContent = bpm; }
 
 function adjTS(w, d) {
-  if (isPlaying) return;
   if (w === 't') { tsTop = Math.max(1, Math.min(16, tsTop + d)); document.getElementById('tsTop').textContent = tsTop; }
   else { var vs = [1,2,4,8,16]; var i = vs.indexOf(tsBot); i = Math.max(0, Math.min(vs.length-1, i+d)); tsBot = vs[i]; document.getElementById('tsBot').textContent = tsBot; }
   // Rebuild measures to fit new capacity
   measures = [defaultMeasure()];
   renderPat();
+  if (isPlaying) restartMetro();
 }
 
 /* ═══════════════════════════════════════════
@@ -684,12 +833,14 @@ function renderPat() {
       col.dataset.measure = mi;
       col.dataset.note = ni;
       col.dataset.noteType = note.t;
-      var widthPx = Math.max(32, Math.round(note.dur / 24 * 52));
+      var widthPx = Math.max(26, Math.round(note.dur / 24 * 48));
       col.style.minWidth = widthPx + 'px';
+      var svgW = widthPx <= 28 ? 22 : 32;
+      var svgH = widthPx <= 28 ? 28 : 40;
 
       var sym = document.createElement('div');
       sym.className = 'note-sym';
-      sym.innerHTML = svgN(note.t);
+      sym.innerHTML = svgN(note.t, svgW, svgH);
       col.appendChild(sym);
 
       var lbl = document.createElement('div');
@@ -749,7 +900,9 @@ function renderPat() {
         if (group.length >= 2) {
           beamGroups[bi] = group;
           group.forEach(function(idx) {
-            cols[idx].sym.innerHTML = svgN(cols[idx].note.t, undefined, undefined, undefined, true);
+            var bw = parseInt(cols[idx].el.style.minWidth) <= 28 ? 22 : 32;
+            var bh = bw <= 22 ? 28 : 40;
+            cols[idx].sym.innerHTML = svgN(cols[idx].note.t, bw, bh, undefined, true);
           });
         }
         bi = bj;
@@ -763,7 +916,9 @@ function renderPat() {
       si = parseInt(si);
       if (tripGroups[si] === 'et') {
         for (var j = 0; j < 3; j++) {
-          cols[si + j].sym.innerHTML = svgN('et', undefined, undefined, undefined, true);
+          var tw = parseInt(cols[si + j].el.style.minWidth) <= 28 ? 22 : 32;
+          var th = tw <= 22 ? 28 : 40;
+          cols[si + j].sym.innerHTML = svgN('et', tw, th, undefined, true);
         }
       }
     });
@@ -824,19 +979,35 @@ function addBeamOverlays() {
     var beatCols = grp.querySelectorAll('.beat-col');
     if (beatCols.length < 2) return;
     var grpRect = grp.getBoundingClientRect();
+
+    // Derive dimensions from actual SVG (all beamed notes in a group share size)
+    var refSvg = beatCols[0].querySelector('.note-sym svg');
+    var nW = refSvg ? parseInt(refSvg.getAttribute('width'))  : 32;
+    var nH = refSvg ? parseInt(refSvg.getAttribute('height')) : 40;
+    // ViewBox is always 0 0 32 40; stem is at x=18, y=6 in viewBox coords
+    var scaledStemX = (18 / 32) * nW;
+    var scaledStemTopY = (6 / 40) * nH;
+    var noteSymH = 32; // .note-sym height
+    var padTop = 3;    // .beat-col padding-top
+    var padLR  = 1;    // .beat-col padding left/right
+    var svgTopInSym = (noteSymH - nH) / 2; // vertical centering of SVG in .note-sym
+
     var stemPoints = [];
     beatCols.forEach(function(col) {
       var colRect = col.getBoundingClientRect();
-      var stemX = colRect.left - grpRect.left + 2 + 18;
-      var t = col.dataset.noteType;
-      stemPoints.push({x: stemX, level: beamLevel(t)});
+      var colContentW = colRect.width - 2 * padLR;
+      var svgLeftInCol = padLR + (colContentW - nW) / 2;
+      var stemX = colRect.left - grpRect.left + svgLeftInCol + scaledStemX;
+      stemPoints.push({x: stemX, level: beamLevel(col.dataset.noteType)});
     });
 
     var maxLevel = 0;
     for (var i = 0; i < stemPoints.length; i++) if (stemPoints[i].level > maxLevel) maxLevel = stemPoints[i].level;
 
-    var beamThick = 3, beamGap = 4, stemTopY = 6;
-    var svgW = grp.offsetWidth;
+    var beamThick = nW <= 22 ? 2.5 : 3;
+    var beamGap = nW <= 22 ? 3.5 : 4;
+    var stemTopY = padTop + Math.max(0, svgTopInSym) + scaledStemTopY;
+    var ovW = grp.offsetWidth;
     var firstX = stemPoints[0].x;
     var lastX = stemPoints[stemPoints.length - 1].x;
     var lines = '';
@@ -857,7 +1028,8 @@ function addBeamOverlays() {
             if (segStart === segEnd) {
               var dir = segStart === 0 ? 1 : -1;
               var sx = stemPoints[segStart].x;
-              lines += '<line x1="'+sx+'" y1="'+yOff+'" x2="'+(sx + dir * 8)+'" y2="'+yOff+'" stroke="#e8e8ec" stroke-width="'+beamThick+'"/>';
+              var stubLen = nW <= 22 ? 6 : 8;
+              lines += '<line x1="'+sx+'" y1="'+yOff+'" x2="'+(sx + dir * stubLen)+'" y2="'+yOff+'" stroke="#e8e8ec" stroke-width="'+beamThick+'"/>';
             } else {
               lines += '<line x1="'+stemPoints[segStart].x+'" y1="'+yOff+'" x2="'+stemPoints[segEnd].x+'" y2="'+yOff+'" stroke="#e8e8ec" stroke-width="'+beamThick+'"/>';
             }
@@ -868,10 +1040,11 @@ function addBeamOverlays() {
     }
 
     var colTop = beatCols[0].getBoundingClientRect().top - grpRect.top;
+    var ovH = stemTopY + maxLevel * (beamThick + beamGap) + 4;
     var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('width', svgW);
-    svg.setAttribute('height', 40);
-    svg.style.cssText = 'position:absolute;top:'+(colTop+4)+'px;left:0;pointer-events:none;';
+    svg.setAttribute('width', ovW);
+    svg.setAttribute('height', ovH);
+    svg.style.cssText = 'position:absolute;top:'+colTop+'px;left:0;pointer-events:none;';
     svg.innerHTML = lines;
     grp.appendChild(svg);
   });
@@ -881,7 +1054,6 @@ function addBeamOverlays() {
    NOTE PICKER
    ═══════════════════════════════════════════ */
 function openNotePicker(mi, ni) {
-  if (isPlaying) return;
   npMi = mi; npNi = ni;
   var note = measures[mi][ni];
   var content = document.getElementById('npContent');
@@ -909,6 +1081,28 @@ function openNotePicker(mi, ni) {
     grp.appendChild(opts);
     content.appendChild(grp);
   });
+
+  // Group insertion options
+  var gDiv = document.createElement('div');
+  gDiv.className = 'np-group';
+  gDiv.innerHTML = '<div class="np-group-title">Groups</div>';
+  var gOpts = document.createElement('div');
+  gOpts.className = 'np-opts';
+  var gKeys = Object.keys(GROUP_TYPES);
+  for (var gi = 0; gi < gKeys.length; gi++) {
+    (function(gk) {
+      var gDef = GROUP_TYPES[gk];
+      var opt = document.createElement('div');
+      opt.className = 'np-opt';
+      var beats = gDef.totalDur / 24;
+      opt.innerHTML = '<div style="font-size:13px;font-weight:600;line-height:1.3">' + gDef.label + '</div>'
+        + '<div class="np-opt-lbl">' + (beats === 1 ? '1 beat' : beats + ' beats') + '</div>';
+      opt.onclick = function() { pickGroup(gk); };
+      gOpts.appendChild(opt);
+    })(gKeys[gi]);
+  }
+  gDiv.appendChild(gOpts);
+  content.appendChild(gDiv);
 
   document.getElementById('npTitle').textContent = 'Beat ' + (Math.floor(tickPosOf(mi,ni)/24)+1) + ' — ' + NT[note.t].label;
   document.getElementById('npOv').classList.add('show');
@@ -973,6 +1167,35 @@ function pickNote(newType) {
   }
   renderPat();
   closeNotePicker();
+  if (isPlaying) restartMetro();
+}
+
+function pickGroup(groupKey) {
+  if (npMi < 0) return;
+  var gDef = GROUP_TYPES[groupKey];
+  var m = measures[npMi];
+  var needed = gDef.totalDur;
+  // Accumulate ticks from current note forward
+  var avail = 0, eatCount = 0;
+  for (var i = npNi; i < m.length && avail < needed; i++) {
+    avail += m[i].dur;
+    eatCount++;
+  }
+  if (avail < needed) { closeNotePicker(); return; }
+  // Remove eaten notes, insert group
+  m.splice(npNi, eatCount);
+  var ins = [];
+  for (var i = 0; i < gDef.notes.length; i++) ins.push({t:gDef.notes[i].t, dur:gDef.notes[i].dur});
+  for (var i = 0; i < ins.length; i++) m.splice(npNi + i, 0, ins[i]);
+  // Fill leftover with rests
+  var leftover = avail - needed;
+  if (leftover > 0) {
+    var fills = fillWithRests(leftover);
+    for (var i = 0; i < fills.length; i++) m.splice(npNi + ins.length + i, 0, fills[i]);
+  }
+  renderPat();
+  closeNotePicker();
+  if (isPlaying) restartMetro();
 }
 
 function fillWithRests(ticks) {
@@ -1016,6 +1239,7 @@ function npSplit() {
   m.splice(npNi, 1, {t:newType, dur:halfDur}, {t:newType, dur:halfDur});
   renderPat();
   closeNotePicker();
+  if (isPlaying) restartMetro();
 }
 
 function npToRest() {
@@ -1042,6 +1266,7 @@ function npToRest() {
   }
   renderPat();
   closeNotePicker();
+  if (isPlaying) restartMetro();
 }
 
 function npDelete() {
@@ -1053,7 +1278,6 @@ function npDelete() {
    RANDOMIZE
    ═══════════════════════════════════════════ */
 function showRandPopup() {
-  if (isPlaying) return;
   document.getElementById('randBg').classList.add('show');
   document.getElementById('randPopup').classList.add('show');
 }
@@ -1069,6 +1293,7 @@ function doRandomize() {
   for (var i = 0; i < num; i++) measures.push(randomMeasure());
   renderPat();
   hideRandPopup();
+  if (isPlaying) restartMetro();
 }
 
 function randomMeasure() {
@@ -1170,97 +1395,145 @@ function playCountClick(t) {
   o.start(t); o.stop(t + 0.05);
 }
 
-function startMetro() {
-  isPlaying = true; sessH = []; sBeats = []; curSub = 0; lastHit = 0; hitArmed = true;
-  sessStart = Date.now(); sessBpm = bpm;
+function startMetro(skipCountoff) {
+  isPlaying = true;
+  if (!skipCountoff) { sessH = []; sessStart = Date.now(); sessBpm = bpm; clearMarkers(); clearResults(); }
+  sBeats = []; curSub = 0; lastHit = 0; hitArmed = true;
   if (masterGain) masterGain.gain.setValueAtTime(1, audioCtx.currentTime);
   if ('wakeLock' in navigator) navigator.wakeLock.request('screen').then(function(l) { wakeLock = l; }).catch(function() {});
-  clearMarkers();
-  clearResults();
   var sched = buildSched();
   if (!sched.length) return;
   var totalTicks = measures.length * measCap();
-  var loopDur = tickToSec(totalTicks);
+  metroLoopDur = tickToSec(totalTicks);
 
-  // 2-bar count-off
-  var countBeats = tsTop * 2;
-  var beatDur = 60.0 / bpm;
-  var countOffDur = countBeats * beatDur;
-  var countStart = audioCtx.currentTime + 0.1;
-
-  // Schedule count-off clicks
-  for (var ci = 0; ci < countBeats; ci++) {
-    var ct = countStart + ci * beatDur;
-    playCountClick(ct);
-  }
-
-  // Show count-off visuals
   document.getElementById('btnGo').style.display = 'none';
   document.getElementById('btnStop').style.display = '';
   var statusEl = document.getElementById('status');
 
-  // Count-off overlay on pattern area
-  var patC = document.getElementById('patContainer');
-  var cOv = document.createElement('div');
-  cOv.className = 'count-ov';
-  cOv.innerHTML = '<div class="count-ov-beat" id="countBeat"></div>';
-  patC.appendChild(cOv);
+  var loopStart, loopCount = 0;
 
-  for (var ci = 0; ci < countBeats; ci++) {
-    (function(beatIdx) {
-      var delay = (countStart + beatIdx * beatDur - audioCtx.currentTime) * 1000;
-      setTimeout(function() {
-        if (!isPlaying) return;
-        var barNum = Math.floor(beatIdx / tsTop) + 1;
-        var beatInBar = (beatIdx % tsTop) + 1;
-        statusEl.innerHTML = '<span class="s-dot on"></span>Count-off: ' + barNum + '.' + beatInBar;
-        var cb = document.getElementById('countBeat');
-        if (cb) { cb.textContent = beatInBar; cb.classList.remove('pulse'); void cb.offsetWidth; cb.classList.add('pulse'); }
-      }, Math.max(0, delay));
-    })(ci);
-  }
-
-  // Pattern starts after count-off
-  var loopStart = countStart + countOffDur;
-  var loopCount = 0;
-  nextNote = loopStart;
-
-  // Start hit detection and pattern after count-off finishes
-  var countDelay = (loopStart - audioCtx.currentTime) * 1000;
-  setTimeout(function() {
-    if (!isPlaying) return;
-    // Remove count-off overlay
-    if (cOv.parentNode) cOv.parentNode.removeChild(cOv);
+  if (skipCountoff) {
+    // Seamless restart — start immediately
+    loopStart = audioCtx.currentTime + 0.05;
+    metroLoopStart = loopStart;
+    nextNote = loopStart;
+    gSched = (clickMode !== 'pattern') ? buildGridSched() : [];
+    curGS = 0; nextGN = loopStart; gLoopCount = 0;
     var calInfo = latMs !== 0 ? ' (cal: '+latMs+'ms)' : '';
     statusEl.innerHTML = '<span class="s-dot on"></span>Playing' + calInfo;
     startHitDet();
-  }, Math.max(0, countDelay));
+  } else {
+    // 2-bar count-off
+    var countBeats = tsTop * 2;
+    var beatDur = 60.0 / bpm;
+    var countOffDur = countBeats * beatDur;
+    var countStart = audioCtx.currentTime + 0.1;
+
+    for (var ci = 0; ci < countBeats; ci++) {
+      playCountClick(countStart + ci * beatDur);
+    }
+
+    // Count-off overlay on pattern area
+    var patC = document.getElementById('patContainer');
+    var cOv = document.createElement('div');
+    cOv.className = 'count-ov';
+    cOv.innerHTML = '<div class="count-ov-beat" id="countBeat"></div>';
+    patC.appendChild(cOv);
+
+    for (var ci = 0; ci < countBeats; ci++) {
+      (function(beatIdx) {
+        var delay = (countStart + beatIdx * beatDur - audioCtx.currentTime) * 1000;
+        setTimeout(function() {
+          if (!isPlaying) return;
+          var barNum = Math.floor(beatIdx / tsTop) + 1;
+          var beatInBar = (beatIdx % tsTop) + 1;
+          statusEl.innerHTML = '<span class="s-dot on"></span>Count-off: ' + barNum + '.' + beatInBar;
+          var cb = document.getElementById('countBeat');
+          if (cb) { cb.textContent = beatInBar; cb.classList.remove('pulse'); void cb.offsetWidth; cb.classList.add('pulse'); }
+        }, Math.max(0, delay));
+      })(ci);
+    }
+
+    loopStart = countStart + countOffDur;
+    metroLoopStart = loopStart;
+    nextNote = loopStart;
+    gSched = (clickMode !== 'pattern') ? buildGridSched() : [];
+    curGS = 0; nextGN = loopStart; gLoopCount = 0;
+
+    var countDelay = (loopStart - audioCtx.currentTime) * 1000;
+    setTimeout(function() {
+      if (!isPlaying) return;
+      if (cOv.parentNode) cOv.parentNode.removeChild(cOv);
+      var calInfo = latMs !== 0 ? ' (cal: '+latMs+'ms)' : '';
+      statusEl.innerHTML = '<span class="s-dot on"></span>Playing' + calInfo;
+      startHitDet();
+    }, Math.max(0, countDelay));
+  }
 
   function tick() {
     if (!isPlaying) return;
+    // Pattern note scheduling
     while (nextNote < audioCtx.currentTime + LA / 1000) {
       var idx = curSub % sched.length;
       var n = sched[idx];
-      var t = loopStart + loopCount * loopDur + tickToSec(n.tickPos);
+      var t = metroLoopStart + loopCount * metroLoopDur + tickToSec(n.tickPos);
       if (idx === 0 && curSub > 0) {
         loopCount++;
-        t = loopStart + loopCount * loopDur + tickToSec(n.tickPos);
+        t = metroLoopStart + loopCount * metroLoopDur + tickToSec(n.tickPos);
       }
-      if (!n.rest) playClick(t, n.acc);
+      if (clickMode !== 'grid') {
+        if (!n.rest && !(clickMute && Math.random() < clickMutePct / 100)) playClick(t, n.acc);
+      }
       sBeats.push({time:t, mi:n.mi, ni:n.ni, rest:n.rest, dur:n.dur});
       if (sBeats.length > sched.length * 4) sBeats = sBeats.slice(-sched.length * 4);
       hlBeat(n.mi, n.ni, t);
 
       var nextIdx = (curSub + 1) % sched.length;
       if (nextIdx === 0) {
-        nextNote = loopStart + (loopCount + 1) * loopDur;
+        nextNote = metroLoopStart + (loopCount + 1) * metroLoopDur;
       } else {
-        nextNote = loopStart + loopCount * loopDur + tickToSec(sched[nextIdx].tickPos);
+        nextNote = metroLoopStart + loopCount * metroLoopDur + tickToSec(sched[nextIdx].tickPos);
       }
       curSub++;
     }
+    // Grid click scheduling (reads global gSched for hot-swap)
+    if (gSched.length > 0) {
+      while (nextGN < audioCtx.currentTime + LA / 1000) {
+        var gi = curGS % gSched.length;
+        var gn = gSched[gi];
+        var gt = metroLoopStart + gLoopCount * metroLoopDur + tickToSec(gn.tickPos);
+        if (gi === 0 && curGS > 0) {
+          gLoopCount++;
+          gt = metroLoopStart + gLoopCount * metroLoopDur + tickToSec(gn.tickPos);
+        }
+        if (!(clickMute && Math.random() < clickMutePct / 100)) playGridClick(gt, gn.acc);
+        var nextGi = (curGS + 1) % gSched.length;
+        if (nextGi === 0) {
+          nextGN = metroLoopStart + (gLoopCount + 1) * metroLoopDur;
+        } else {
+          nextGN = metroLoopStart + gLoopCount * metroLoopDur + tickToSec(gSched[nextGi].tickPos);
+        }
+        curGS++;
+      }
+    }
   }
   schedT = setInterval(tick, SI); tick();
+}
+
+function rebuildGridLive() {
+  gSched = (clickMode !== 'pattern') ? buildGridSched() : [];
+  curGS = 0; gLoopCount = 0;
+  if (isPlaying && audioCtx) nextGN = audioCtx.currentTime;
+}
+
+function restartMetro() {
+  if (!isPlaying) return;
+  var savedH = sessH.slice();
+  var savedStart = sessStart;
+  var savedBpm = sessBpm;
+  stopMetro();
+  sessH = savedH; sessStart = savedStart; sessBpm = savedBpm;
+  startMetro(true);
 }
 
 function hlBeat(mi, ni, time) {
@@ -1825,6 +2098,20 @@ function showHelp() {
   document.getElementById('calVolS').value = clickVol;
   document.getElementById('calVolV').textContent = clickVol + '%';
   loadLat();
+  // Restore click grid settings
+  var sCM = localStorage.getItem('tt_cm');
+  if (sCM && (sCM === 'pattern' || sCM === 'grid' || sCM === 'both')) clickMode = sCM;
+  var sGS = localStorage.getItem('tt_gs');
+  if (sGS && gridSubCounts[sGS]) gridSub = sGS;
+  try { var sGP = JSON.parse(localStorage.getItem('tt_gp')); if (sGP && sGP.length === gridSubCounts[gridSub]) gridPos = sGP; } catch(e) {}
+  var sCMU = localStorage.getItem('tt_cmu');
+  if (sCMU === '1') clickMute = true;
+  var sCMP = localStorage.getItem('tt_cmp');
+  if (sCMP !== null) clickMutePct = parseInt(sCMP) || 30;
+  setClickMode(clickMode);
+  setClickMute(clickMute);
+  setClickMutePct(clickMutePct);
+  setGridSub(gridSub, true);
   buildPat();
   document.getElementById('bpmVal').textContent = bpm;
   document.getElementById('bpmSlider').addEventListener('input', function(e) { bpm = parseInt(e.target.value); document.getElementById('bpmVal').textContent = bpm; });
