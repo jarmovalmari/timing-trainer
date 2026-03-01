@@ -57,8 +57,8 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .pattern-bar { display:flex; align-items:flex-start; gap:0; flex-wrap:wrap; flex:1; }
 .beat-col { display:flex; flex-direction:column; align-items:center; gap:1px; padding:3px 1px; border-radius:6px; transition:background 0.1s; cursor:pointer; position:relative; }
 .beat-col.active { background:rgba(255,255,255,0.08); }
-.beat-sep { width:1px; height:42px; background:var(--border); margin:0 1px; align-self:center; flex-shrink:0; }
-.note-sym { display:flex; align-items:center; justify-content:center; height:32px; }
+.beat-sep { width:1px; height:46px; background:var(--border); margin:0 1px; align-self:center; flex-shrink:0; }
+.note-sym { display:flex; align-items:flex-end; justify-content:center; height:36px; }
 .note-sym svg { transition:transform 0.1s; }
 .beat-col:active .note-sym svg { transform:scale(0.9); }
 .beat-col.active .note-sym svg { transform:scale(1.08); }
@@ -71,10 +71,10 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .cg { color:var(--green); } .cr { color:var(--red); } .cb { color:var(--blue); }
 
 /* Bar lines */
-.bar-line { width:2px; height:42px; background:var(--text-dim); margin:0 3px; align-self:center; flex-shrink:0; }
+.bar-line { width:2px; height:46px; background:var(--text-dim); margin:0 3px; align-self:center; flex-shrink:0; }
 .bar-line-double { display:flex; gap:3px; align-self:center; flex-shrink:0; margin:0 3px; }
-.bar-line-double .bl-thin { width:1.5px; height:42px; background:var(--text-dim); }
-.bar-line-double .bl-thick { width:4px; height:42px; background:var(--text-dim); border-radius:1px; }
+.bar-line-double .bl-thin { width:1.5px; height:46px; background:var(--text-dim); }
+.bar-line-double .bl-thick { width:4px; height:46px; background:var(--text-dim); border-radius:1px; }
 
 /* Beam group */
 .beam-group { display:flex; align-items:flex-start; position:relative; }
@@ -368,6 +368,7 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
   <div id="npContent"></div>
   <div class="np-actions">
     <div class="np-act" onclick="npSplit()">Split</div>
+    <div class="np-act" onclick="npInsertAfter()">Insert</div>
     <div class="np-act" onclick="npToRest()">&#8594; Rest</div>
     <div class="np-act" onclick="npDelete()">Delete</div>
   </div>
@@ -840,7 +841,7 @@ function renderPat() {
       var widthPx = Math.max(26, Math.round(note.dur / 24 * 48));
       if (note.t === 't' || note.t === 'tr') widthPx = Math.max(32, widthPx);
       col.style.minWidth = widthPx + 'px';
-      var svgW = 26, svgH = 32;
+      var svgW = 28, svgH = 36;
 
       var sym = document.createElement('div');
       sym.className = 'note-sym';
@@ -904,7 +905,7 @@ function renderPat() {
         if (group.length >= 2) {
           beamGroups[bi] = group;
           group.forEach(function(idx) {
-            var bw = 26, bh = 32;
+            var bw = 28, bh = 36;
             cols[idx].sym.innerHTML = svgN(cols[idx].note.t, bw, bh, undefined, true);
           });
         }
@@ -919,7 +920,7 @@ function renderPat() {
       si = parseInt(si);
       if (tripGroups[si] === 'et') {
         for (var j = 0; j < 3; j++) {
-          var tw = 26, th = 32;
+          var tw = 28, th = 36;
           cols[si + j].sym.innerHTML = svgN('et', tw, th, undefined, true);
         }
       }
@@ -927,10 +928,11 @@ function renderPat() {
 
     // Append to bar with beat separators, beam groups, and triplet grouping
     var ci = 0;
+    var lastRenderedBeat = -1;
     while (ci < cols.length) {
       if (ci > 0) {
-        var posBefore = tickPositions[ci];
-        if (posBefore % 24 === 0 && posBefore > 0) {
+        var curBeat = Math.floor(tickPositions[ci] / 24);
+        if (curBeat > lastRenderedBeat && tickPositions[ci] > 0) {
           var sep = document.createElement('div');
           sep.className = 'beat-sep';
           bar.appendChild(sep);
@@ -947,6 +949,7 @@ function renderPat() {
         bracket.innerHTML = '<span class="triplet-num">3</span>';
         grp.appendChild(bracket);
         bar.appendChild(grp);
+        lastRenderedBeat = Math.floor(tickPositions[ci + 2] / 24);
         ci += 3;
       } else if (beamGroups.hasOwnProperty(ci)) {
         var bgrp = document.createElement('div');
@@ -954,8 +957,10 @@ function renderPat() {
         var indices = beamGroups[ci];
         for (var j = 0; j < indices.length; j++) bgrp.appendChild(cols[indices[j]].el);
         bar.appendChild(bgrp);
+        lastRenderedBeat = Math.floor(tickPositions[indices[indices.length - 1]] / 24);
         ci = indices[indices.length - 1] + 1;
       } else {
+        lastRenderedBeat = Math.floor(tickPositions[ci] / 24);
         bar.appendChild(cols[ci].el);
         ci++;
       }
@@ -989,10 +994,10 @@ function addBeamOverlays() {
     // ViewBox is always 0 0 32 40; stem is at x=18, y=6 in viewBox coords
     var scaledStemX = (18 / 32) * nW;
     var scaledStemTopY = (6 / 40) * nH;
-    var noteSymH = 32; // .note-sym height
+    var noteSymH = 36; // .note-sym height
     var padTop = 3;    // .beat-col padding-top
     var padLR  = 1;    // .beat-col padding left/right
-    var svgTopInSym = (noteSymH - nH) / 2; // vertical centering of SVG in .note-sym
+    var svgTopInSym = noteSymH - nH; // bottom-aligned (flex-end) SVG in .note-sym
 
     var stemPoints = [];
     beatCols.forEach(function(col) {
@@ -1161,11 +1166,32 @@ function pickNote(newType) {
         }
       }
     } else {
-      // Can't fit — shake feedback
-      var sheet = document.getElementById('npSheet');
-      sheet.classList.add('shake');
-      setTimeout(function() { sheet.classList.remove('shake'); }, 300);
-      return;
+      // Can't fit in current measure — auto-create next line
+      var cap = measCap();
+      if (newDur > cap) {
+        // Note larger than entire measure — shake
+        var sheet = document.getElementById('npSheet');
+        sheet.classList.add('shake');
+        setTimeout(function() { sheet.classList.remove('shake'); }, 300);
+        return;
+      }
+      // Create next measure if needed
+      if (npMi + 1 >= measures.length) {
+        measures.push(defaultMeasure());
+      }
+      // Place note at start of next measure
+      var nm = measures[npMi + 1];
+      var navail = 0, neatCount = 0;
+      for (var i = 0; i < nm.length && navail < newDur; i++) {
+        navail += nm[i].dur;
+        neatCount++;
+      }
+      nm.splice(0, neatCount, {t:newType, dur:newDur});
+      var nleft = navail - newDur;
+      if (nleft > 0) {
+        var fills = fillWithRests(nleft);
+        for (var i = 0; i < fills.length; i++) nm.splice(1 + i, 0, fills[i]);
+      }
     }
   }
   renderPat();
@@ -1184,7 +1210,33 @@ function pickGroup(groupKey) {
     avail += m[i].dur;
     eatCount++;
   }
-  if (avail < needed) { closeNotePicker(); return; }
+  if (avail < needed) {
+    // Auto-create next measure and place group there
+    var cap = measCap();
+    if (needed > cap) { closeNotePicker(); return; }
+    if (npMi + 1 >= measures.length) {
+      measures.push(defaultMeasure());
+    }
+    var nm = measures[npMi + 1];
+    var navail = 0, neatCount = 0;
+    for (var i = 0; i < nm.length && navail < needed; i++) {
+      navail += nm[i].dur;
+      neatCount++;
+    }
+    nm.splice(0, neatCount);
+    var ins = [];
+    for (var i = 0; i < gDef.notes.length; i++) ins.push({t:gDef.notes[i].t, dur:gDef.notes[i].dur});
+    for (var i = 0; i < ins.length; i++) nm.splice(i, 0, ins[i]);
+    var nleft = navail - needed;
+    if (nleft > 0) {
+      var fills = fillWithRests(nleft);
+      for (var i = 0; i < fills.length; i++) nm.splice(ins.length + i, 0, fills[i]);
+    }
+    renderPat();
+    closeNotePicker();
+    if (isPlaying) restartMetro();
+    return;
+  }
   // Remove eaten notes, insert group
   m.splice(npNi, eatCount);
   var ins = [];
@@ -1288,6 +1340,47 @@ function npDelete() {
   if (m.length <= 1) { npToRest(); return; }
   m.splice(npNi, 1);
   trimAndPad(npMi);
+  renderPat();
+  closeNotePicker();
+  if (isPlaying) restartMetro();
+}
+
+function npInsertAfter() {
+  if (npMi < 0) return;
+  var m = measures[npMi];
+  var cap = measCap();
+  // Insert a quarter rest (or largest rest that fits) after current note
+  var insertDur = 24;
+  var insertType = 'qr';
+  // Insert the rest after current position
+  m.splice(npNi + 1, 0, {t:insertType, dur:insertDur});
+  // Check if measure overflows
+  var sum = measSum(m);
+  if (sum > cap) {
+    // Move overflow notes from end to next measure
+    var overflow = [];
+    while (measSum(m) > cap) {
+      overflow.unshift(m.pop());
+    }
+    // Pad current measure if under capacity
+    trimAndPad(npMi);
+    // Create next measure if needed
+    if (npMi + 1 >= measures.length) {
+      measures.splice(npMi + 1, 0, []);
+    }
+    var nm = measures[npMi + 1];
+    // Prepend overflow to next measure
+    for (var oi = overflow.length - 1; oi >= 0; oi--) {
+      nm.unshift(overflow[oi]);
+    }
+    // Trim next measure if it overflows
+    var nsum = measSum(nm);
+    while (nsum > cap && nm.length > 1) {
+      nsum -= nm[nm.length - 1].dur;
+      nm.pop();
+    }
+    if (measSum(nm) < cap) trimAndPad(npMi + 1);
+  }
   renderPat();
   closeNotePicker();
   if (isPlaying) restartMetro();
