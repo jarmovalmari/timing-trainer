@@ -7,29 +7,28 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Timing Trainer</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700;800&family=DM+Sans:wght@300;400;500;600;700&family=Inter+Tight:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=DM+Sans:wght@300;400;500;600;700&display=swap');
 :root {
-  --bg:#08080a; --surface:#131316; --surface2:#1a1a1e; --border:#222226;
-  --text:#e8e8ec; --text-dim:#6a6a72; --accent:#e8e8ec;
+  --bg:#0a0a0b; --surface:#141416; --surface2:#1c1c1f; --border:#2a2a2e;
+  --text:#e8e8ec; --text-dim:#7a7a82; --accent:#f0f0f0;
   --green:#22c55e; --green-bg:rgba(34,197,94,0.12);
   --red:#ef4444; --red-bg:rgba(239,68,68,0.12);
   --blue:#3b82f6; --blue-bg:rgba(59,130,246,0.12);
-  --gold:#b8943d; --gold-light:#e8d5a3;
 }
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text); min-height:100dvh; overflow-x:hidden; -webkit-user-select:none; user-select:none; }
 .app { max-width:540px; margin:0 auto; padding:16px 16px 120px; }
 .header { display:flex; align-items:center; justify-content:space-between; padding:12px 0; margin-bottom:8px; }
-.header h1 { font-family:'Inter Tight',sans-serif; font-size:18px; font-weight:700; letter-spacing:-0.3px; }
+.header h1 { font-size:18px; font-weight:600; letter-spacing:-0.3px; }
 .section { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:12px; }
 .section-title { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:1.2px; color:var(--text-dim); margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; }
 
 /* BPM */
 .bpm-display { text-align:center; padding:8px 0; }
-.bpm-value { font-family:'JetBrains Mono',monospace; font-size:88px; font-weight:800; line-height:1; letter-spacing:-6px; color:var(--accent); }
+.bpm-value { font-family:'JetBrains Mono',monospace; font-size:64px; font-weight:700; line-height:1; letter-spacing:-3px; color:var(--accent); }
 .bpm-label { font-size:12px; color:var(--text-dim); margin-top:4px; }
-.bpm-slider { width:100%; margin:12px 0 4px; -webkit-appearance:none; appearance:none; height:4px; background:var(--surface2); border-radius:2px; outline:none; }
-.bpm-slider::-webkit-slider-thumb { -webkit-appearance:none; width:22px; height:22px; background:var(--accent); border-radius:50%; cursor:pointer; box-shadow:0 0 12px rgba(184,148,61,0.3); }
+.bpm-slider { width:100%; margin:12px 0 4px; -webkit-appearance:none; appearance:none; height:4px; background:var(--border); border-radius:2px; outline:none; }
+.bpm-slider::-webkit-slider-thumb { -webkit-appearance:none; width:24px; height:24px; background:var(--accent); border-radius:50%; cursor:pointer; }
 .bpm-presets { display:flex; gap:6px; justify-content:center; margin-top:8px; flex-wrap:wrap; }
 .bpm-preset { font-family:'JetBrains Mono',monospace; font-size:11px; padding:4px 10px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text-dim); cursor:pointer; }
 .bpm-preset:active { background:var(--border); }
@@ -119,15 +118,10 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .mic-sel { flex:1; background:var(--card); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:6px 8px; font-family:'JetBrains Mono',monospace; font-size:10px; outline:none; -webkit-appearance:none; appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 8px center; padding-right:24px; }
 
 /* Transport */
-.transport { position:fixed; bottom:0; left:0; right:0; background:linear-gradient(to top,var(--bg) 60%,transparent); padding:20px 24px calc(16px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; align-items:center; gap:6px; z-index:50; }
-.tr-btn { width:100%; max-width:340px; cursor:pointer; text-align:center; border:none; font-family:'Inter Tight',sans-serif; font-size:18px; font-weight:600; letter-spacing:4px; text-transform:uppercase; }
-.btn-go { background:linear-gradient(135deg,#b8943d,#d4b86a,#e8d5a3,#d4a8c8,#a8bce0,#b8943d); padding:2px; border-radius:18px; color:var(--text); position:relative; }
-.btn-go::before { content:''; position:absolute; inset:-8px; border-radius:26px; background:radial-gradient(ellipse at center,rgba(184,148,61,0.18),rgba(184,148,61,0.05) 60%,transparent 80%); pointer-events:none; z-index:-1; }
-.btn-go-inner { background:var(--bg); border-radius:16px; padding:18px 20px; }
-.btn-go:active .btn-go-inner { background:var(--surface); }
-.btn-stop { background:var(--red); color:#fff; padding:18px 20px; border-radius:16px; }
-.btn-stop:active { background:#dc2626; }
-.tr-hint { font-size:12px; color:var(--text-dim); opacity:0.6; }
+.transport { position:fixed; bottom:0; left:0; right:0; background:var(--surface); border-top:1px solid var(--border); padding:12px 16px calc(12px + env(safe-area-inset-bottom)); display:flex; gap:10px; justify-content:center; z-index:50; }
+.tr-btn { flex:1; max-width:200px; padding:14px; border-radius:10px; font-size:15px; font-weight:600; cursor:pointer; text-align:center; border:none; }
+.btn-go { background:var(--green); color:#fff; }
+.btn-stop { background:var(--red); color:#fff; }
 
 /* Calibration Overlay */
 .ov { position:fixed; inset:0; background:rgba(0,0,0,0.95); z-index:100; display:none; flex-direction:column; align-items:center; justify-content:center; padding:24px; }
@@ -232,7 +226,7 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
   </div>
   <div class="section">
     <div class="bpm-display"><div class="bpm-value" id="bpmVal">100</div><div class="bpm-label">BPM</div></div>
-    <div style="display:flex;align-items:center;gap:8px;margin:12px 0 4px"><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim)">30</span><input type="range" class="bpm-slider" id="bpmSlider" min="30" max="240" value="100" style="margin:0"><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim)">240</span></div>
+    <input type="range" class="bpm-slider" id="bpmSlider" min="30" max="240" value="100">
     <div class="bpm-presets">
       <div class="bpm-preset" onclick="setBpm(60)">60</div><div class="bpm-preset" onclick="setBpm(80)">80</div>
       <div class="bpm-preset" onclick="setBpm(100)">100</div><div class="bpm-preset" onclick="setBpm(120)">120</div>
@@ -334,9 +328,8 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 </div>
 
 <div class="transport">
-  <div class="tr-btn btn-go" id="btnGo" onclick="handleGo()"><div class="btn-go-inner">GO</div></div>
+  <div class="tr-btn btn-go" id="btnGo" onclick="handleGo()">GO</div>
   <div class="tr-btn btn-stop" id="btnStop" onclick="handleStop()" style="display:none">STOP</div>
-  <div class="tr-hint" id="trHint">Tap to start your session</div>
 </div>
 
 <!-- Calibration Overlay -->
@@ -788,8 +781,7 @@ function buildGridSched() {
 /* ═══════════════════════════════════════════
    BPM & TIME SIGNATURE
    ═══════════════════════════════════════════ */
-function updateSliderFill(el) { var pct = (el.value - el.min) / (el.max - el.min) * 100; el.style.background = 'linear-gradient(to right,var(--gold) 0%,var(--gold-light) ' + pct + '%,var(--surface2) ' + pct + '%)'; }
-function setBpm(v) { bpm = v; var sl = document.getElementById('bpmSlider'); sl.value = v; document.getElementById('bpmVal').textContent = bpm; updateSliderFill(sl); }
+function setBpm(v) { bpm = v; document.getElementById('bpmSlider').value = v; document.getElementById('bpmVal').textContent = bpm; }
 
 function adjTS(w, d) {
   if (w === 't') { tsTop = Math.max(1, Math.min(16, tsTop + d)); document.getElementById('tsTop').textContent = tsTop; }
@@ -1528,7 +1520,6 @@ function startMetro(skipCountoff) {
 
   document.getElementById('btnGo').style.display = 'none';
   document.getElementById('btnStop').style.display = '';
-  var trHint = document.getElementById('trHint'); if (trHint) trHint.style.display = 'none';
   var statusEl = document.getElementById('status');
 
   var loopStart, loopCount = 0;
@@ -1688,7 +1679,6 @@ function stopMetro() {
   document.querySelectorAll('.beat-col').forEach(function(el) { el.classList.remove('active'); });
   document.getElementById('btnStop').style.display = 'none';
   document.getElementById('btnGo').style.display = '';
-  var trHint2 = document.getElementById('trHint'); if (trHint2) trHint2.style.display = '';
   document.getElementById('status').innerHTML = '<span class="s-dot on"></span>Mic active';
   if (sessH.length > 0) {
     showInlineTendencies();
@@ -2243,9 +2233,7 @@ function showHelp() {
   setGridSub(gridSub, true);
   buildPat();
   document.getElementById('bpmVal').textContent = bpm;
-  var bpmSl = document.getElementById('bpmSlider');
-  updateSliderFill(bpmSl);
-  bpmSl.addEventListener('input', function(e) { bpm = parseInt(e.target.value); document.getElementById('bpmVal').textContent = bpm; updateSliderFill(e.target); });
+  document.getElementById('bpmSlider').addEventListener('input', function(e) { bpm = parseInt(e.target.value); document.getElementById('bpmVal').textContent = bpm; });
   document.getElementById('sensS').addEventListener('input', function(e) { sens = parseInt(e.target.value); document.getElementById('sensV').textContent = sens; document.getElementById('micTh').style.left = (sens/128*100)+'%'; });
   document.getElementById('winS').addEventListener('input', function(e) { hitWin = parseInt(e.target.value); document.getElementById('winV').textContent = hitWin+'ms'; });
   function syncVol(v) { clickVol = v; document.getElementById('volS').value = v; document.getElementById('volV').textContent = v + '%'; document.getElementById('calVolS').value = v; document.getElementById('calVolV').textContent = v + '%'; localStorage.setItem('tt_vol', v); }
