@@ -25,9 +25,9 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .section-title { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:1.2px; color:var(--text-dim); margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; }
 
 /* BPM */
-.bpm-display { text-align:center; padding:8px 0; }
+.bpm-display { text-align:center; padding:4px 0 0; }
 .bpm-value { font-family:'JetBrains Mono',monospace; font-size:88px; font-weight:800; line-height:1; letter-spacing:-6px; color:var(--accent); }
-.bpm-label { font-size:12px; color:var(--text-dim); margin-top:4px; }
+.bpm-label { display:none; }
 .bpm-slider { width:100%; margin:12px 0 4px; -webkit-appearance:none; appearance:none; height:4px; background:var(--surface2); border-radius:2px; outline:none; }
 .bpm-slider::-webkit-slider-thumb { -webkit-appearance:none; width:22px; height:22px; background:var(--accent); border-radius:50%; cursor:pointer; box-shadow:0 0 12px rgba(184,148,61,0.3); }
 .bpm-presets { display:flex; gap:6px; justify-content:center; margin-top:8px; flex-wrap:wrap; }
@@ -58,8 +58,8 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .pattern-bar { display:flex; align-items:flex-start; gap:0; flex-wrap:wrap; flex:1; }
 .beat-col { display:flex; flex-direction:column; align-items:center; gap:1px; padding:3px 1px; border-radius:6px; transition:background 0.1s; cursor:pointer; position:relative; }
 .beat-col.active { background:rgba(255,255,255,0.08); }
-.beat-sep { width:1px; height:46px; background:var(--border); margin:0 1px; align-self:center; flex-shrink:0; }
-.note-sym { display:flex; align-items:flex-end; justify-content:center; height:36px; }
+.beat-sep { width:1px; height:58px; background:var(--border); margin:0 1px; align-self:center; flex-shrink:0; }
+.note-sym { display:flex; align-items:flex-end; justify-content:center; height:48px; }
 .note-sym svg { transition:transform 0.1s; }
 .beat-col:active .note-sym svg { transform:scale(0.9); }
 .beat-col.active .note-sym svg { transform:scale(1.08); }
@@ -72,10 +72,10 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .cg { color:var(--green); } .cr { color:var(--red); } .cb { color:var(--blue); }
 
 /* Bar lines */
-.bar-line { width:2px; height:46px; background:var(--text-dim); margin:0 3px; align-self:center; flex-shrink:0; }
+.bar-line { width:2px; height:58px; background:var(--text-dim); margin:0 3px; align-self:center; flex-shrink:0; }
 .bar-line-double { display:flex; gap:3px; align-self:center; flex-shrink:0; margin:0 3px; }
-.bar-line-double .bl-thin { width:1.5px; height:46px; background:var(--text-dim); }
-.bar-line-double .bl-thick { width:4px; height:46px; background:var(--text-dim); border-radius:1px; }
+.bar-line-double .bl-thin { width:1.5px; height:58px; background:var(--text-dim); }
+.bar-line-double .bl-thick { width:4px; height:58px; background:var(--text-dim); border-radius:1px; }
 
 /* Beam group */
 .beam-group { display:flex; align-items:flex-start; position:relative; }
@@ -121,9 +121,11 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 /* Transport */
 .transport { position:fixed; bottom:0; left:0; right:0; background:linear-gradient(to top,var(--bg) 60%,transparent); padding:20px 24px calc(16px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; align-items:center; gap:6px; z-index:50; }
 .tr-btn { width:100%; max-width:340px; cursor:pointer; text-align:center; border:none; font-family:'Inter Tight',sans-serif; font-size:18px; font-weight:600; letter-spacing:4px; text-transform:uppercase; }
-.btn-go { background:linear-gradient(135deg,#b8943d,#d4b86a,#e8d5a3,#d4a8c8,#a8bce0,#b8943d); padding:2px; border-radius:18px; color:var(--text); position:relative; }
+.btn-go { padding:2px; border-radius:18px; color:var(--text); position:relative; overflow:hidden; background:#b8943d; }
 .btn-go::before { content:''; position:absolute; inset:-8px; border-radius:26px; background:radial-gradient(ellipse at center,rgba(184,148,61,0.18),rgba(184,148,61,0.05) 60%,transparent 80%); pointer-events:none; z-index:-1; }
-.btn-go-inner { background:var(--bg); border-radius:16px; padding:18px 20px; }
+.btn-go::after { content:''; position:absolute; inset:-80%; background:conic-gradient(from 0deg,transparent 0%,#e8d5a3 8%,#d4b86a 12%,#b8943d 16%,transparent 24%,transparent 50%,#d4a8c8 56%,#a8bce0 60%,#b8943d 64%,transparent 72%); animation:shimmerSpin 3s linear infinite; z-index:0; }
+@keyframes shimmerSpin { to { transform:rotate(360deg); } }
+.btn-go-inner { background:var(--bg); border-radius:16px; padding:18px 20px; position:relative; z-index:1; }
 .btn-go:active .btn-go-inner { background:var(--surface); }
 .btn-stop { background:var(--red); color:#fff; padding:18px 20px; border-radius:16px; }
 .btn-stop:active { background:#dc2626; }
@@ -194,8 +196,22 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .result-meta { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--text-dim); margin-bottom:6px; }
 .share-ov { position:fixed; inset:0; background:#000; z-index:200; display:flex; align-items:center; justify-content:center; }
 .share-card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; min-width:240px; text-align:center; }
-.help-icon { width:28px; height:28px; border-radius:50%; background:var(--surface2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:600; color:var(--text-dim); cursor:pointer; flex-shrink:0; }
-.help-icon:active { background:var(--border); }
+.settings-wrap { position:relative; flex-shrink:0; }
+.settings-icon { width:28px; height:28px; border-radius:50%; background:var(--surface2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; }
+.settings-icon:active { background:var(--border); }
+.settings-icon svg { width:16px; height:16px; }
+.settings-menu { display:none; position:absolute; right:0; top:36px; background:var(--surface); border:1px solid var(--border); border-radius:10px; min-width:160px; z-index:71; overflow:hidden; box-shadow:0 8px 32px rgba(0,0,0,0.5); }
+.settings-menu.show { display:block; }
+.settings-item { padding:12px 16px; font-size:13px; font-weight:500; color:var(--text); cursor:pointer; display:flex; align-items:center; gap:10px; }
+.settings-item:active, .settings-item.active { background:var(--surface2); }
+.settings-item + .settings-item { border-top:1px solid var(--border); }
+.settings-item-icon { font-size:15px; width:20px; text-align:center; opacity:0.7; }
+.settings-popover { display:none; position:fixed; top:60px; right:16px; width:calc(100vw - 32px); max-width:340px; max-height:calc(100dvh - 200px); overflow-y:auto; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px; z-index:72; box-shadow:0 12px 48px rgba(0,0,0,0.6); }
+.settings-popover.show { display:block; }
+.settings-popover-title { font-size:14px; font-weight:600; margin-bottom:14px; display:flex; align-items:center; justify-content:space-between; }
+.settings-popover-close { font-size:18px; color:var(--text-dim); cursor:pointer; padding:2px 6px; }
+.settings-backdrop { display:none; position:fixed; inset:0; z-index:70; }
+.settings-backdrop.show { display:block; }
 .help-link { color:var(--accent); text-decoration:underline; }
 .share-card .share-title { font-size:14px; font-weight:600; margin-bottom:12px; }
 .share-btn { display:block; width:100%; padding:12px; margin-bottom:8px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:13px; cursor:pointer; text-align:center; }
@@ -218,6 +234,16 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .grid-sub-pills { display:flex; gap:4px; flex:1; }
 .grid-pill { font-size:12px; padding:3px 8px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text-dim); cursor:pointer; font-family:'JetBrains Mono',monospace; text-align:center; }
 .grid-pill.active { background:var(--accent); color:var(--bg); border-color:var(--accent); }
+.ts-inline { font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--text); display:flex; flex-direction:column; align-items:center; justify-content:center; line-height:1; cursor:pointer; width:24px; min-width:24px; padding:2px 0; user-select:none; }
+.ts-inline-top, .ts-inline-bot { font-size:18px; }
+.ts-popover { display:none; position:fixed; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px; z-index:75; box-shadow:0 4px 24px rgba(0,0,0,0.5); white-space:nowrap; }
+.ts-popover.show { display:block; }
+.ts-pop-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.ts-pop-row:last-child { margin-bottom:0; }
+.ts-pop-label { font-size:11px; color:var(--text-dim); width:50px; }
+.ts-pop-val { font-family:'JetBrains Mono',monospace; font-size:18px; font-weight:700; width:28px; text-align:center; }
+.ts-pop-btn { width:28px; height:28px; display:flex; align-items:center; justify-content:center; background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text-dim); font-size:14px; cursor:pointer; }
+.ts-pop-btn:active { background:var(--border); }
 .grid-pos-row { display:flex; gap:6px; flex:1; }
 .grid-pos-btn { width:28px; height:28px; border-radius:50%; border:2px solid var(--border); background:transparent; color:var(--text-dim); font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.15s; }
 .grid-pos-btn.on { background:var(--accent); color:var(--bg); border-color:var(--accent); }
@@ -228,52 +254,19 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
   <div class="header">
     <h1>Timing Trainer</h1>
     <div class="status" id="status"><span class="s-dot off"></span>Tap GO to start</div>
-    <div class="help-icon" onclick="showHelp()">?</div>
+    <div class="settings-wrap">
+      <div class="settings-icon" onclick="toggleSettings()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" color="var(--text-dim)"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg></div>
+      <div class="settings-menu" id="settingsMenu">
+        <div class="settings-item" onclick="openSettingsPanel('metro')"><span class="settings-item-icon">&#9835;</span>Metronome</div>
+        <div class="settings-item" onclick="openSettingsPanel('mic')"><span class="settings-item-icon">&#127908;</span>Microphone</div>
+        <div class="settings-item" onclick="openSettingsPanel('audio')"><span class="settings-item-icon">&#128266;</span>Audio</div>
+        <div class="settings-item" onclick="showHelp(); closeSettings()"><span class="settings-item-icon">&#10067;</span>Help</div>
+      </div>
+    </div>
   </div>
   <div class="section">
-    <div class="bpm-display"><div class="bpm-value" id="bpmVal">100</div><div class="bpm-label">BPM</div></div>
-    <div style="display:flex;align-items:center;gap:8px;margin:12px 0 4px"><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim)">30</span><input type="range" class="bpm-slider" id="bpmSlider" min="30" max="240" value="100" style="margin:0"><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim)">240</span></div>
-    <div class="bpm-presets">
-      <div class="bpm-preset" onclick="setBpm(60)">60</div><div class="bpm-preset" onclick="setBpm(80)">80</div>
-      <div class="bpm-preset" onclick="setBpm(100)">100</div><div class="bpm-preset" onclick="setBpm(120)">120</div>
-      <div class="bpm-preset" onclick="setBpm(140)">140</div><div class="bpm-preset" onclick="setBpm(180)">180</div>
-    </div>
-  </div>
-  <div style="display:flex; gap:12px;">
-    <div class="section" style="flex:1; margin-bottom:12px;">
-      <div class="section-title">Time</div>
-      <div class="ts-row" style="justify-content:center">
-        <div class="ts-btns"><div class="ts-btn" onclick="adjTS('t',1)">&#9650;</div><div class="ts-btn" onclick="adjTS('t',-1)">&#9660;</div></div>
-        <div class="ts-val" id="tsTop">4</div><div class="ts-slash">/</div><div class="ts-val" id="tsBot">4</div>
-        <div class="ts-btns"><div class="ts-btn" onclick="adjTS('b',1)">&#9650;</div><div class="ts-btn" onclick="adjTS('b',-1)">&#9660;</div></div>
-      </div>
-    </div>
-    <div class="section" style="flex:1; margin-bottom:12px;">
-      <div class="section-title">Click</div>
-      <select id="clickModeSel" class="click-sel" onchange="setClickMode(this.value)">
-        <option value="pattern">Pattern</option>
-        <option value="grid">Grid</option>
-        <option value="both">Both</option>
-      </select>
-      <div id="gridCfg" style="display:none; margin-top:8px">
-        <div class="grid-sub-pills" id="gridSubPills" style="margin-bottom:6px">
-          <div class="grid-pill" id="gp_q" onclick="setGridSub('q')">&#9833;</div>
-          <div class="grid-pill" id="gp_8" onclick="setGridSub('8')">&#9834;</div>
-          <div class="grid-pill active" id="gp_16" onclick="setGridSub('16')">&#9836;</div>
-          <div class="grid-pill" id="gp_8t" onclick="setGridSub('8t')">&#9834;&#179;</div>
-        </div>
-        <div id="gridPosToggles" class="grid-pos-row"></div>
-      </div>
-      <div id="muteRow" style="margin-top:8px">
-        <div style="display:flex; align-items:center; gap:6px">
-          <input type="checkbox" id="clickMuteChk" onchange="setClickMute(this.checked)" style="margin:0; cursor:pointer">
-          <label for="clickMuteChk" style="font-size:11px; color:var(--text-dim); cursor:pointer">Mute</label>
-          <span id="clickMuteLbl" style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-dim); margin-left:auto">30%</span>
-        </div>
-        <input type="range" id="clickMuteRng" min="5" max="95" value="30" step="5"
-               class="sl-ctrl" oninput="setClickMutePct(this.value)" style="width:100%; margin-top:4px" disabled>
-      </div>
-    </div>
+    <div class="bpm-display"><div class="bpm-value" id="bpmVal">100</div></div>
+    <div style="display:flex;align-items:center;gap:8px;margin:8px 0 0"><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim)">30</span><input type="range" class="bpm-slider" id="bpmSlider" min="30" max="240" value="100" style="margin:0"><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim)">240</span></div>
   </div>
   <div class="section">
     <div class="section-title">
@@ -288,49 +281,89 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
     <div id="resultStrip" style="display:none"></div>
     <div id="patContainer"></div>
   </div>
-  <div class="section">
-    <div class="section-title">Audio Output</div>
-    <div class="mode-toggle">
-      <div class="mode-btn active" id="modeW" onclick="setMode('w')">&#128268; Wired</div>
-      <div class="mode-btn" id="modeS" onclick="setMode('s')">&#128266; Speaker</div>
-      <div class="mode-btn" id="modeBT" onclick="setMode('bt')">&#127911; Bluetooth</div>
+</div>
+
+<!-- Time Signature Popover (fixed, outside sections) -->
+<div class="ts-popover" id="tsPopover" onclick="event.stopPropagation()">
+  <div class="ts-pop-row"><span class="ts-pop-label">Top</span><div class="ts-pop-btn" onclick="adjTSPop('t',-1)">&#8722;</div><span class="ts-pop-val" id="tsPopTop">4</span><div class="ts-pop-btn" onclick="adjTSPop('t',1)">+</div></div>
+  <div class="ts-pop-row"><span class="ts-pop-label">Bottom</span><div class="ts-pop-btn" onclick="adjTSPop('b',-1)">&#8722;</div><span class="ts-pop-val" id="tsPopBot">4</span><div class="ts-pop-btn" onclick="adjTSPop('b',1)">+</div></div>
+</div>
+
+<!-- Settings Backdrop -->
+<div class="settings-backdrop" id="settingsBackdrop" onclick="closeSettings()"></div>
+
+<!-- Settings Popovers -->
+<div class="settings-popover" id="panelMetro">
+  <div class="settings-popover-title">Metronome <span class="settings-popover-close" onclick="closeSettings()">&times;</span></div>
+  <div class="section-title" style="margin-bottom:8px">Click Mode</div>
+  <select id="clickModeSel" class="click-sel" onchange="setClickMode(this.value)" style="margin-bottom:10px">
+    <option value="pattern">Pattern</option>
+    <option value="grid">Grid</option>
+    <option value="both">Both</option>
+  </select>
+  <div id="gridCfg" style="display:none; margin-bottom:10px">
+    <div class="grid-sub-pills" id="gridSubPills" style="margin-bottom:6px">
+      <div class="grid-pill" id="gp_q" onclick="setGridSub('q')">&#9833;</div>
+      <div class="grid-pill" id="gp_8" onclick="setGridSub('8')">&#9834;</div>
+      <div class="grid-pill active" id="gp_16" onclick="setGridSub('16')">&#9836;</div>
+      <div class="grid-pill" id="gp_8t" onclick="setGridSub('8t')">&#9834;&#179;</div>
     </div>
-    <div class="cal-btn" onclick="startCalib()">&#9201; Calibrate Latency</div>
-    <div class="sl-row" style="margin-top:12px">
-      <span class="sl-label">Volume</span>
-      <input type="range" class="sl-ctrl" id="volS" min="0" max="150" value="80">
-      <span class="sl-label" id="volV" style="min-width:36px">80%</span>
+    <div id="gridPosToggles" class="grid-pos-row"></div>
+  </div>
+  <div id="muteRow">
+    <div style="display:flex; align-items:center; gap:6px">
+      <input type="checkbox" id="clickMuteChk" onchange="setClickMute(this.checked)" style="margin:0; cursor:pointer">
+      <label for="clickMuteChk" style="font-size:11px; color:var(--text-dim); cursor:pointer">Random Mute</label>
+      <span id="clickMuteLbl" style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-dim); margin-left:auto">30%</span>
     </div>
-    <div class="lat-row">
-      <div class="lat-wrap"><input type="number" class="lat-input" id="latIn" value="0" step="1"><span class="lat-unit">ms</span></div>
-      <div class="lat-btns">
-        <div class="lat-btn" onclick="adjLat(-5)">&#8722;5</div><div class="lat-btn" onclick="adjLat(-1)">&#8722;1</div>
-        <div class="lat-btn" onclick="adjLat(1)">+1</div><div class="lat-btn" onclick="adjLat(5)">+5</div>
-      </div>
+    <input type="range" id="clickMuteRng" min="5" max="95" value="30" step="5"
+           class="sl-ctrl" oninput="setClickMutePct(this.value)" style="width:100%; margin-top:4px" disabled>
+  </div>
+</div>
+
+<div class="settings-popover" id="panelMic">
+  <div class="settings-popover-title">Microphone <span class="settings-popover-close" onclick="closeSettings()">&times;</span></div>
+  <div class="sl-row" style="margin-top:0">
+    <span class="sl-label">Input</span>
+    <select id="micSel" class="mic-sel" onchange="switchMic()"><option value="">Default</option></select>
+  </div>
+  <div class="mic-row" style="margin-top:8px">
+    <div class="mic-flash" id="micFlash"></div>
+    <div class="mic-bar"><div class="mic-fill" id="micFill"></div><div class="mic-thresh" id="micTh" style="left:9%"></div></div>
+    <div class="mic-pk" id="micPk">0</div>
+  </div>
+  <div class="sl-row">
+    <span class="sl-label">Thresh</span>
+    <input type="range" class="sl-ctrl" id="sensS" min="1" max="128" value="12">
+    <span class="sl-label" id="sensV" style="min-width:28px">12</span>
+  </div>
+  <div class="sl-row">
+    <span class="sl-label">Window</span>
+    <input type="range" class="sl-ctrl" id="winS" min="30" max="300" value="120">
+    <span class="sl-label" id="winV" style="min-width:42px">120ms</span>
+  </div>
+</div>
+
+<div class="settings-popover" id="panelAudio">
+  <div class="settings-popover-title">Audio <span class="settings-popover-close" onclick="closeSettings()">&times;</span></div>
+  <div class="mode-toggle" style="margin-bottom:12px">
+    <div class="mode-btn active" id="modeW" onclick="setMode('w')">Wired</div>
+    <div class="mode-btn" id="modeS" onclick="setMode('s')">Speaker</div>
+    <div class="mode-btn" id="modeBT" onclick="setMode('bt')">Bluetooth</div>
+  </div>
+  <div class="sl-row">
+    <span class="sl-label">Volume</span>
+    <input type="range" class="sl-ctrl" id="volS" min="0" max="150" value="80">
+    <span class="sl-label" id="volV" style="min-width:36px">80%</span>
+  </div>
+  <div class="lat-row">
+    <div class="lat-wrap"><input type="number" class="lat-input" id="latIn" value="0" step="1"><span class="lat-unit">ms</span></div>
+    <div class="lat-btns">
+      <div class="lat-btn" onclick="adjLat(-5)">&#8722;5</div><div class="lat-btn" onclick="adjLat(-1)">&#8722;1</div>
+      <div class="lat-btn" onclick="adjLat(1)">+1</div><div class="lat-btn" onclick="adjLat(5)">+5</div>
     </div>
   </div>
-  <div class="section">
-    <div class="section-title">Microphone</div>
-    <div class="sl-row" style="margin-top:0">
-      <span class="sl-label">Input</span>
-      <select id="micSel" class="mic-sel" onchange="switchMic()"><option value="">Default</option></select>
-    </div>
-    <div class="mic-row">
-      <div class="mic-flash" id="micFlash"></div>
-      <div class="mic-bar"><div class="mic-fill" id="micFill"></div><div class="mic-thresh" id="micTh" style="left:9%"></div></div>
-      <div class="mic-pk" id="micPk">0</div>
-    </div>
-    <div class="sl-row">
-      <span class="sl-label">Thresh</span>
-      <input type="range" class="sl-ctrl" id="sensS" min="1" max="128" value="12">
-      <span class="sl-label" id="sensV" style="min-width:28px">12</span>
-    </div>
-    <div class="sl-row">
-      <span class="sl-label">Window</span>
-      <input type="range" class="sl-ctrl" id="winS" min="30" max="300" value="120">
-      <span class="sl-label" id="winV" style="min-width:42px">120ms</span>
-    </div>
-  </div>
+  <div class="cal-btn" onclick="startCalib()" style="margin-top:12px">&#9201; Calibrate Latency</div>
 </div>
 
 <div class="transport">
@@ -792,8 +825,8 @@ function updateSliderFill(el) { var pct = (el.value - el.min) / (el.max - el.min
 function setBpm(v) { bpm = v; var sl = document.getElementById('bpmSlider'); sl.value = v; document.getElementById('bpmVal').textContent = bpm; updateSliderFill(sl); }
 
 function adjTS(w, d) {
-  if (w === 't') { tsTop = Math.max(1, Math.min(16, tsTop + d)); document.getElementById('tsTop').textContent = tsTop; }
-  else { var vs = [1,2,4,8,16]; var i = vs.indexOf(tsBot); i = Math.max(0, Math.min(vs.length-1, i+d)); tsBot = vs[i]; document.getElementById('tsBot').textContent = tsBot; }
+  if (w === 't') { tsTop = Math.max(1, Math.min(16, tsTop + d)); }
+  else { var vs = [1,2,4,8,16]; var i = vs.indexOf(tsBot); i = Math.max(0, Math.min(vs.length-1, i+d)); tsBot = vs[i]; }
   // Rebuild measures to fit new capacity
   measures = [defaultMeasure()];
   renderPat();
@@ -820,10 +853,18 @@ function renderPat() {
   measures.forEach(function(measure, mi) {
     var row = document.createElement('div');
     row.className = 'measure-row';
-    var label = document.createElement('div');
-    label.className = 'measure-label';
-    label.textContent = (mi + 1);
-    row.appendChild(label);
+    if (mi === 0) {
+      var tsEl = document.createElement('div');
+      tsEl.className = 'ts-inline';
+      tsEl.innerHTML = '<span class="ts-inline-top">' + tsTop + '</span><span class="ts-inline-bot">' + tsBot + '</span>';
+      tsEl.onclick = function(ev) { toggleTsPopover(ev); };
+      row.appendChild(tsEl);
+    } else {
+      var label = document.createElement('div');
+      label.className = 'measure-label';
+      label.textContent = (mi + 1);
+      row.appendChild(label);
+    }
 
     // Opening bar line (except first measure)
     if (mi > 0) {
@@ -849,24 +890,12 @@ function renderPat() {
       var widthPx = Math.max(26, Math.round(note.dur / 24 * 48));
       if (note.t === 't' || note.t === 'tr') widthPx = Math.max(32, widthPx);
       col.style.minWidth = widthPx + 'px';
-      var svgW = 28, svgH = 36;
+      var svgW = 36, svgH = 48;
 
       var sym = document.createElement('div');
       sym.className = 'note-sym';
       sym.innerHTML = svgN(note.t, svgW, svgH);
       col.appendChild(sym);
-
-      var lbl = document.createElement('div');
-      lbl.className = 'note-label';
-      var tickPos = tp;
-      var beatNum = Math.floor(tickPos / 24) + 1;
-      var subTick = tickPos % 24;
-      if (subTick === 0) lbl.textContent = beatNum;
-      else if (subTick === 12) lbl.textContent = '+';
-      else if (subTick === 6 || subTick === 18) lbl.textContent = 'e';
-      else if (subTick === 8 || subTick === 16) lbl.textContent = 't';
-      else lbl.textContent = '.';
-      col.appendChild(lbl);
 
       var mk = document.createElement('div');
       mk.className = 'hit-marker';
@@ -913,7 +942,7 @@ function renderPat() {
         if (group.length >= 2) {
           beamGroups[bi] = group;
           group.forEach(function(idx) {
-            var bw = 28, bh = 36;
+            var bw = 36, bh = 48;
             cols[idx].sym.innerHTML = svgN(cols[idx].note.t, bw, bh, undefined, true);
           });
         }
@@ -928,17 +957,26 @@ function renderPat() {
       si = parseInt(si);
       if (tripGroups[si] === 'et') {
         for (var j = 0; j < 3; j++) {
-          var tw = 28, th = 36;
+          var tw = 36, th = 48;
           cols[si + j].sym.innerHTML = svgN('et', tw, th, undefined, true);
         }
       }
     });
 
+    // Check if any beat has subdivisions (multiple notes)
+    var beatHasSub = {};
+    for (var si = 0; si < cols.length; si++) {
+      var b = Math.floor(tickPositions[si] / 24);
+      beatHasSub[b] = (beatHasSub[b] || 0) + 1;
+    }
+    var needsSeps = false;
+    for (var bk in beatHasSub) { if (beatHasSub[bk] > 1) { needsSeps = true; break; } }
+
     // Append to bar with beat separators, beam groups, and triplet grouping
     var ci = 0;
     var lastRenderedBeat = -1;
     while (ci < cols.length) {
-      if (ci > 0) {
+      if (ci > 0 && needsSeps) {
         var curBeat = Math.floor(tickPositions[ci] / 24);
         if (curBeat > lastRenderedBeat && tickPositions[ci] > 0) {
           var sep = document.createElement('div');
@@ -1002,7 +1040,7 @@ function addBeamOverlays() {
     // ViewBox is always 0 0 32 40; stem is at x=18, y=6 in viewBox coords
     var scaledStemX = (18 / 32) * nW;
     var scaledStemTopY = (6 / 40) * nH;
-    var noteSymH = 36; // .note-sym height
+    var noteSymH = 48; // .note-sym height
     var padTop = 3;    // .beat-col padding-top
     var padLR  = 1;    // .beat-col padding left/right
     var svgTopInSym = noteSymH - nH; // bottom-aligned (flex-end) SVG in .note-sym
@@ -2200,6 +2238,71 @@ function saveBlobAsFile(blob) {
   a.click();
   document.body.removeChild(a);
   setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+}
+
+/* ═══════════════════════════════════════════
+   SETTINGS MENU
+   ═══════════════════════════════════════════ */
+function toggleSettings() {
+  var menu = document.getElementById('settingsMenu');
+  if (menu.classList.contains('show')) { closeSettings(); return; }
+  menu.classList.add('show');
+  document.getElementById('settingsBackdrop').classList.add('show');
+}
+function openSettingsPanel(name) {
+  document.getElementById('settingsMenu').classList.remove('show');
+  ['panelMetro','panelMic','panelAudio'].forEach(function(id) {
+    document.getElementById(id).classList.remove('show');
+  });
+  var panel = document.getElementById('panel' + name.charAt(0).toUpperCase() + name.slice(1));
+  if (panel) {
+    panel.classList.add('show');
+    document.getElementById('settingsBackdrop').classList.add('show');
+  }
+}
+function closeSettings() {
+  document.getElementById('settingsMenu').classList.remove('show');
+  ['panelMetro','panelMic','panelAudio'].forEach(function(id) {
+    document.getElementById(id).classList.remove('show');
+  });
+  document.getElementById('settingsBackdrop').classList.remove('show');
+}
+
+/* ═══════════════════════════════════════════
+   TIME SIGNATURE POPOVER
+   ═══════════════════════════════════════════ */
+function toggleTsPopover(ev) {
+  ev.stopPropagation();
+  var pop = document.getElementById('tsPopover');
+  if (!pop) return;
+  if (pop.classList.contains('show')) { pop.classList.remove('show'); return; }
+  // Position near the time signature
+  var tsEl = document.querySelector('.ts-inline');
+  if (tsEl) {
+    var r = tsEl.getBoundingClientRect();
+    pop.style.left = r.left + 'px';
+    pop.style.top = Math.max(8, r.top - 8) + 'px';
+    pop.style.transform = 'translateY(-100%)';
+  }
+  pop.classList.add('show');
+  updateTsPopover();
+  var close = function(e) { if (!pop.contains(e.target) && e.target !== tsEl && !tsEl.contains(e.target)) { pop.classList.remove('show'); document.removeEventListener('click', close); } };
+  setTimeout(function() { document.addEventListener('click', close); }, 0);
+}
+function updateTsPopover() {
+  var tEl = document.getElementById('tsPopTop');
+  var bEl = document.getElementById('tsPopBot');
+  if (tEl) tEl.textContent = tsTop;
+  if (bEl) bEl.textContent = tsBot;
+}
+function adjTSPop(which, d) {
+  adjTS(which, d);
+  updateTsPopover();
+  // Update the inline display too
+  var inlT = document.querySelector('.ts-inline-top');
+  var inlB = document.querySelector('.ts-inline-bot');
+  if (inlT) inlT.textContent = tsTop;
+  if (inlB) inlB.textContent = tsBot;
 }
 
 function showHelp() {
