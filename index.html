@@ -140,7 +140,7 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .cv.flash { border-color:var(--green); background:var(--green-bg); }
 .cv-lbl { font-size:12px; color:var(--text-dim); }
 .cv-cnt { font-family:'JetBrains Mono',monospace; font-size:32px; font-weight:700; }
-.cm-bar { width:200px; height:6px; background:var(--surface2); border-radius:3px; overflow:hidden; margin-top:12px; }
+.cm-bar { width:200px; height:6px; background:var(--surface2); border-radius:3px; overflow:hidden; margin-top:12px; position:relative; }
 .cm-fill { height:100%; width:0%; background:var(--green); border-radius:3px; transition:width 0.05s; }
 .c-prog { font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--text-dim); margin-top:16px; text-align:center; }
 .c-res { text-align:center; margin-top:20px; display:none; }
@@ -396,11 +396,16 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
   <div class="ov-title">Latency Calibration</div>
   <div class="ov-desc" id="calDesc">Clap or hit your pad along with the clicks. The mic detects hits automatically.</div>
   <div class="cv" id="calVis"><div class="cv-lbl">Hits</div><div class="cv-cnt" id="calCnt">0</div></div>
-  <div class="cm-bar"><div class="cm-fill" id="calMF"></div></div>
+  <div class="cm-bar"><div class="cm-fill" id="calMF"></div><div class="cm-th" id="calTh" style="position:absolute;top:0;bottom:0;width:2px;background:var(--accent);pointer-events:none"></div></div>
   <div class="sl-row" style="margin:8px 0 4px">
     <span class="sl-label" style="color:var(--text)">Vol</span>
     <input type="range" class="sl-ctrl" id="calVolS" min="0" max="150" value="80">
     <span class="sl-label" id="calVolV" style="min-width:36px">80%</span>
+  </div>
+  <div class="sl-row" style="margin:0 0 4px">
+    <span class="sl-label" style="color:var(--text)">Sens</span>
+    <input type="range" class="sl-ctrl" id="calSensS" min="2" max="64" value="12">
+    <span class="sl-label" id="calSensV" style="min-width:36px">12</span>
   </div>
   <div class="c-prog" id="calProg">Tap "Start" to begin</div>
   <div class="c-res" id="calRes"><div class="c-res-v" id="calResV">0 ms</div><div class="c-res-l">Detected latency compensation</div></div>
@@ -581,7 +586,7 @@ var measures = []; // array of arrays: [[{t,dur},...],...]
 var sens = 12, hitWin = 120, MR = 35, RA = 0.3, ML = 150; // min retrigger ms, re-arm fraction, max lockout ms
 var lastHit = 0, hitArmed = true, micPoll = null, micMeterI = null;
 var schedT = null, nextNote = 0, curSub = 0, sBeats = [], countOffTids = [], inCountOff = false;
-var LA = 100, SI = 20, clickBlank = [], BLANK_BEFORE = 10, BLANK_AFTER = 80, BLANK_MULT = 3;
+var LA = 100, SI = 20, clickBlank = [], BLANK_AFTER = 50;
 var sessH = [], sessStart = 0, sessBpm = 0;
 // Click grid state
 var clickMode = 'pattern'; // 'pattern' | 'grid' | 'both'
@@ -652,7 +657,8 @@ async function connectMic(deviceId) {
     await new Promise(function(r) { setTimeout(r, 50); });
   }
   if (micSrcNode) { micSrcNode.disconnect(); micSrcNode = null; }
-  var constraints = { audio: { echoCancellation:false, noiseSuppression:false, autoGainControl:false } };
+  var spk = aMode === 's';
+  var constraints = { audio: { echoCancellation: spk, noiseSuppression: spk, autoGainControl:false } };
   if (deviceId) constraints.audio.deviceId = { exact: deviceId };
   micStream = await navigator.mediaDevices.getUserMedia(constraints);
   micSrcNode = audioCtx.createMediaStreamSource(micStream);
@@ -1634,6 +1640,7 @@ function startMetro(skipCountoff) {
       playCountClick(countStart + ci * beatDur);
     }
 
+
     // Count-off overlay on pattern area
     var patC = document.getElementById('patContainer');
     var cOv = document.createElement('div');
@@ -1843,13 +1850,13 @@ function startHitDet() {
     var p = getPeak();
     var now = audioCtx.currentTime;
     var nowMs = now * 1000;
-    // Speaker mode: boost threshold during click window to suppress feedback
+    // Speaker mode: EC handles most bleed, blanking catches residual
     var eSens = sens;
     if (aMode === 's' && clickBlank.length > 0) {
       while (clickBlank.length && clickBlank[0] < now - 0.2) clickBlank.shift();
       for (var bi = 0; bi < clickBlank.length; bi++) {
-        if (now >= clickBlank[bi] - BLANK_BEFORE / 1000 && now <= clickBlank[bi] + BLANK_AFTER / 1000) {
-          eSens = sens * BLANK_MULT; break;
+        if (now >= clickBlank[bi] && now <= clickBlank[bi] + BLANK_AFTER / 1000) {
+          eSens = sens * 2; break;
         }
       }
     }
@@ -1905,16 +1912,24 @@ function clearMarkers() {
    LATENCY & CALIBRATION
    ═══════════════════════════════════════════ */
 function setMode(m) {
+  var prevMode = aMode;
   aMode = m;
   document.getElementById('modeW').className = 'mode-btn' + (m === 'w' ? ' active' : '');
   document.getElementById('modeS').className = 'mode-btn' + (m === 's' ? ' active' : '');
   document.getElementById('modeBT').className = 'mode-btn' + (m === 'bt' ? ' active' : '');
   updateAudioIcon();
   loadLat();
+  // Reconnect mic with echo cancellation toggled for speaker mode
+  var ecChanged = (prevMode === 's') !== (m === 's');
+  if (ecChanged && isInit) {
+    var sel = document.getElementById('micSel');
+    var devId = sel && sel.value ? sel.value : undefined;
+    connectMic(devId).then(function() { updateMicStatus(); }).catch(function() {});
+  }
 }
 
 function latKey() { return aMode === 'bt' ? 'tt_bt' : aMode === 's' ? 'tt_s' : 'tt_w'; }
-function latDefault() { return aMode === 'w' ? -51 : 0; }
+function latDefault() { return aMode === 's' ? -25 : (aMode === 'w' ? -51 : 0); }
 
 function loadLat() {
   var v = localStorage.getItem(latKey());
@@ -1924,6 +1939,13 @@ function loadLat() {
 
 function saveLat() { localStorage.setItem(latKey(), latMs.toString()); }
 function adjLat(d) { latMs += d; document.getElementById('latIn').value = latMs; saveLat(); }
+
+function updateCalThMarker() {
+  var eSens = sens;
+  var pct = Math.min(100, (eSens / 128) * 100);
+  var th = document.getElementById('calTh');
+  if (th) th.style.left = pct + '%';
+}
 
 async function startCalib() {
   if (isPlaying) stopMetro();
@@ -1940,6 +1962,11 @@ async function startCalib() {
   document.getElementById('calCnt').textContent = '0';
   document.getElementById('calProg').textContent = 'Tap "Start" to begin';
   document.getElementById('calDesc').textContent = 'Clap or hit your pad along with the clicks. Tap End when done.';
+  // Sync calibration sensitivity slider
+  var calSensS = document.getElementById('calSensS');
+  calSensS.value = sens;
+  document.getElementById('calSensV').textContent = sens;
+  updateCalThMarker();
 }
 
 function beginCalib() {
@@ -1973,6 +2000,9 @@ function beginCalib() {
             document.getElementById('sensS').value = sens;
             document.getElementById('sensV').textContent = sens;
             document.getElementById('micTh').style.left = (sens / 128 * 100) + '%';
+            document.getElementById('calSensS').value = sens;
+            document.getElementById('calSensV').textContent = sens;
+            updateCalThMarker();
             document.getElementById('calProg').textContent = 'Threshold adjusted to ' + sens + ' \u2014 keep hitting...';
           }
         }
@@ -1994,8 +2024,18 @@ function beginCalib() {
     // Track max peak for auto-threshold
     if (p > atPeakMax) atPeakMax = p;
 
+    // Speaker mode: EC + blanking during click windows (matches playback)
+    var eSens = sens;
+    if (aMode === 's' && cClk.length > 0) {
+      for (var ci2 = cClk.length - 1; ci2 >= Math.max(0, cClk.length - 4); ci2--) {
+        if (now >= cClk[ci2] && now <= cClk[ci2] + BLANK_AFTER / 1000) {
+          eSens = sens * 2; break;
+        }
+      }
+    }
+
     if (cArmed) {
-      if (p > sens && (nowMs - cLH) > MR) {
+      if (p > eSens && (nowMs - cLH) > MR) {
         cLH = nowMs;
         cArmed = false;
         cHit.push(now);
@@ -2006,7 +2046,7 @@ function beginCalib() {
         vis.classList.add('flash');
         setTimeout(function() { vis.classList.remove('flash'); }, 120);
       }
-    } else if (p < sens * RA || (nowMs - cLH) > ML) {
+    } else if (p < eSens * RA || (nowMs - cLH) > ML) {
       cArmed = true;
     }
   }, 3);
@@ -2504,6 +2544,14 @@ function showHelp() {
   function syncVol(v) { clickVol = v; document.getElementById('volS').value = v; document.getElementById('volV').textContent = v + '%'; document.getElementById('calVolS').value = v; document.getElementById('calVolV').textContent = v + '%'; localStorage.setItem('tt_vol', v); }
   document.getElementById('volS').addEventListener('input', function(e) { syncVol(parseInt(e.target.value)); });
   document.getElementById('calVolS').addEventListener('input', function(e) { syncVol(parseInt(e.target.value)); });
+  document.getElementById('calSensS').addEventListener('input', function(e) {
+    sens = parseInt(e.target.value);
+    document.getElementById('calSensV').textContent = sens;
+    document.getElementById('sensS').value = sens;
+    document.getElementById('sensV').textContent = sens;
+    document.getElementById('micTh').style.left = (sens / 128 * 100) + '%';
+    updateCalThMarker();
+  });
   document.getElementById('latIn').addEventListener('change', function(e) { latMs = Math.max(-500, Math.min(500, parseInt(e.target.value)||0)); e.target.value = latMs; saveLat(); });
   document.getElementById('latIn').addEventListener('input', function(e) { latMs = Math.max(-500, Math.min(500, parseInt(e.target.value)||0)); });
   document.addEventListener('visibilitychange', function() {
