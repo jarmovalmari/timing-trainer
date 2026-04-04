@@ -55,7 +55,7 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .measure-row { display:flex; align-items:flex-end; gap:6px; margin-bottom:10px; padding-bottom:10px; }
 .measure-row:last-child { margin-bottom:0; padding-bottom:0; }
 .measure-label { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--text-dim); width:18px; min-width:18px; text-align:center; padding-bottom:20px; }
-.pattern-bar { display:flex; align-items:flex-end; gap:0; flex-wrap:wrap; flex:1; }
+.pattern-bar { display:flex; align-items:flex-end; gap:0; flex-wrap:nowrap; flex-shrink:0; }
 .beat-col { display:flex; flex-direction:column; align-items:center; gap:1px; padding:3px 1px; border-radius:6px; transition:background 0.1s; cursor:pointer; position:relative; }
 .beat-col.active { background:rgba(255,255,255,0.08); }
 .beat-col.editing { background:rgba(196,151,70,0.2); box-shadow:0 0 0 1px var(--gold); }
@@ -1095,17 +1095,18 @@ function renderPat() {
   });
 
   // Second pass: pack measures into rows
+  var GAP = 6; // must match .measure-row gap
   var ROW_BUDGET = 470;
-  var LABEL_W = 30;
-  var BARLINE_W = 8;
-  var DBLBAR_W = 13;
+  var LABEL_W = 30 + GAP;
+  var BARLINE_W = 8 + GAP;
+  var DBLBAR_W = 13 + GAP;
   var currentRow = null;
   var currentRowWidth = 0;
   var firstInRow = true;
 
   measData.forEach(function(md, idx) {
     var isLast = idx === measData.length - 1;
-    var needed = md.width + (firstInRow ? 0 : BARLINE_W) + (isLast ? DBLBAR_W : 0);
+    var needed = md.width + GAP + (firstInRow ? 0 : BARLINE_W) + (isLast ? DBLBAR_W : 0);
 
     // Start new row if this measure won't fit
     if (!currentRow || (!firstInRow && currentRowWidth + needed > ROW_BUDGET)) {
@@ -1119,6 +1120,7 @@ function renderPat() {
         tsEl.innerHTML = '<span class="ts-inline-top">' + tsTop + '</span><span class="ts-inline-bot">' + tsBot + '</span>';
         tsEl.onclick = function(ev) { toggleTsPopover(ev); };
         currentRow.appendChild(tsEl);
+        currentRowWidth = LABEL_W;
       } else {
         var label = document.createElement('div');
         label.className = 'measure-label';
@@ -1128,9 +1130,8 @@ function renderPat() {
         var obl = document.createElement('div');
         obl.className = 'bar-line';
         currentRow.appendChild(obl);
+        currentRowWidth = LABEL_W + BARLINE_W;
       }
-
-      currentRowWidth = LABEL_W;
       firstInRow = true;
     }
 
@@ -1699,7 +1700,7 @@ function startMetro(skipCountoff) {
   isPlaying = true;
   if (!skipCountoff) { sessH = []; sessStart = Date.now(); sessBpm = bpm; clearMarkers(); clearResults(); }
   sBeats = []; curSub = 0; lastHit = 0; hitArmed = true;
-  if (masterGain) masterGain.gain.setValueAtTime(1, audioCtx.currentTime);
+  if (masterGain) { masterGain.gain.cancelScheduledValues(0); masterGain.gain.setValueAtTime(1, audioCtx.currentTime); }
   if ('wakeLock' in navigator) navigator.wakeLock.request('screen').then(function(l) { wakeLock = l; }).catch(function() {});
   var sched = buildSched();
   if (!sched.length) { isPlaying = false; return; }
@@ -1729,7 +1730,7 @@ function startMetro(skipCountoff) {
     var countBeats = tsTop;
     var beatDur = 60.0 / bpm;
     var countOffDur = countBeats * beatDur;
-    var countStart = audioCtx.currentTime + 0.1;
+    var countStart = audioCtx.currentTime + 0.15;
 
     for (var ci = 0; ci < countBeats; ci++) {
       playCountClick(countStart + ci * beatDur);
