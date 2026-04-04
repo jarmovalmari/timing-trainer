@@ -52,37 +52,37 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .count-ov-beat { font-family:'JetBrains Mono',monospace; font-size:48px; font-weight:700; color:var(--accent); opacity:0.9; }
 .count-ov-beat.pulse { animation:countPulse 0.3s ease-out; }
 @keyframes countPulse { 0% { transform:scale(1.3); opacity:1; } 100% { transform:scale(1); opacity:0.9; } }
-.measure-row { display:flex; align-items:flex-start; gap:6px; margin-bottom:10px; padding-bottom:10px; }
+.measure-row { display:flex; align-items:flex-end; gap:6px; margin-bottom:10px; padding-bottom:10px; }
 .measure-row:last-child { margin-bottom:0; padding-bottom:0; }
-.measure-label { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--text-dim); width:18px; min-width:18px; text-align:center; padding-top:14px; }
-.pattern-bar { display:flex; align-items:flex-start; gap:0; flex-wrap:wrap; flex:1; }
+.measure-label { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--text-dim); width:18px; min-width:18px; text-align:center; padding-bottom:20px; }
+.pattern-bar { display:flex; align-items:flex-end; gap:0; flex-wrap:wrap; flex:1; }
 .beat-col { display:flex; flex-direction:column; align-items:center; gap:1px; padding:3px 1px; border-radius:6px; transition:background 0.1s; cursor:pointer; position:relative; }
 .beat-col.active { background:rgba(255,255,255,0.08); }
 .beat-col.editing { background:rgba(196,151,70,0.2); box-shadow:0 0 0 1px var(--gold); }
-.beat-sep { width:1px; height:58px; background:var(--border); margin:0 1px; align-self:center; flex-shrink:0; }
+.beat-sep { display:none; }
 .note-sym { display:flex; align-items:flex-end; justify-content:center; height:48px; }
 .note-sym svg { transition:transform 0.1s; }
 .beat-col:active .note-sym svg { transform:scale(0.9); }
 .beat-col.active .note-sym svg { transform:scale(1.08); }
 .note-label { font-family:'JetBrains Mono',monospace; font-size:8px; color:var(--text-dim); }
-.hit-marker { height:14px; position:relative; width:100%; margin-top:1px; }
-.hit-track { position:absolute; top:6px; left:2px; right:2px; height:1px; background:var(--border); }
-.hit-center { position:absolute; top:3px; left:50%; width:1px; height:7px; background:var(--border); transform:translateX(-0.5px); }
+.hit-marker { height:16px; position:relative; width:100%; margin-top:2px; overflow:visible; }
+.hit-track { display:none; }
+.hit-center { display:none; }
 .hit-dot { position:absolute; top:2px; left:50%; width:8px; height:8px; border-radius:50%; transform:translateX(-4px); display:none; }
 .hit-dot.show { display:block; }
 .cg { color:var(--green); } .cr { color:var(--red); } .cb { color:var(--blue); }
 
 /* Bar lines */
-.bar-line { width:2px; height:58px; background:var(--text-dim); margin:0 3px; align-self:center; flex-shrink:0; }
-.bar-line-double { display:flex; gap:3px; align-self:center; flex-shrink:0; margin:0 3px; }
+.bar-line { width:2px; height:58px; background:var(--text-dim); margin:0 3px; align-self:flex-end; flex-shrink:0; }
+.bar-line-double { display:flex; gap:3px; align-self:flex-end; flex-shrink:0; margin:0 3px; }
 .bar-line-double .bl-thin { width:1.5px; height:58px; background:var(--text-dim); }
 .bar-line-double .bl-thick { width:4px; height:58px; background:var(--text-dim); border-radius:1px; }
 
 /* Beam group */
-.beam-group { display:flex; align-items:flex-start; position:relative; }
+.beam-group { display:flex; align-items:flex-end; position:relative; }
 
 /* Triplet group */
-.triplet-group { display:flex; align-items:flex-start; position:relative; padding-top:16px; }
+.triplet-group { display:flex; align-items:flex-end; position:relative; padding-top:16px; }
 .triplet-bracket { position:absolute; top:0; left:4px; right:4px; height:14px; pointer-events:none; display:flex; align-items:flex-end; }
 .triplet-bracket::before { content:''; flex:1; height:8px; border-left:1.5px solid var(--text-dim); border-top:1.5px solid var(--text-dim); }
 .triplet-bracket::after { content:''; flex:1; height:8px; border-right:1.5px solid var(--text-dim); border-top:1.5px solid var(--text-dim); }
@@ -125,6 +125,8 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .action-btn { width:48px; height:48px; border-radius:50%; background:var(--surface2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:background 0.15s; }
 .action-btn:active { background:var(--border); }
 .action-btn svg { width:20px; height:20px; color:var(--text-dim); }
+.action-btn { position:relative; }
+.mic-dot-on { position:absolute; top:6px; right:6px; width:6px; height:6px; border-radius:50%; background:var(--green); }
 .go-stop-wrap { width:120px; height:120px; position:relative; flex-shrink:0; }
 .tr-btn { width:100%; max-width:340px; cursor:pointer; text-align:center; border:none; font-family:'Inter Tight',sans-serif; font-size:18px; font-weight:600; letter-spacing:4px; text-transform:uppercase; }
 /* Glow layer — blurred warm gold behind the ring */
@@ -141,7 +143,7 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 /* STOP button — matching circle */
 .btn-stop { background:var(--red); color:#fff; width:120px; height:120px; border-radius:50%; display:flex; align-items:center; justify-content:center; padding:0; }
 .btn-stop:active { background:#dc2626; }
-.tr-hint { font-size:12px; color:var(--text-dim); opacity:0.6; }
+.tr-hint { font-size:12px; color:var(--text-dim); opacity:0.6; min-height:16px; }
 
 /* Calibration Overlay */
 .ov { position:fixed; inset:0; background:rgba(0,0,0,0.95); z-index:100; display:none; flex-direction:column; align-items:center; justify-content:center; padding:24px; }
@@ -249,7 +251,7 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .grid-sub-pills { display:flex; gap:4px; flex:1; }
 .grid-pill { font-size:12px; padding:3px 8px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text-dim); cursor:pointer; font-family:'JetBrains Mono',monospace; text-align:center; }
 .grid-pill.active { background:var(--accent); color:var(--bg); border-color:var(--accent); }
-.ts-inline { font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--text); display:flex; flex-direction:column; align-items:center; justify-content:center; line-height:1; cursor:pointer; width:24px; min-width:24px; padding:2px 0; user-select:none; }
+.ts-inline { font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--text); display:flex; flex-direction:column; align-items:center; justify-content:flex-end; line-height:1; cursor:pointer; width:24px; min-width:24px; padding:0 0 20px; user-select:none; }
 .ts-inline-top, .ts-inline-bot { font-size:18px; }
 .ts-popover { display:none; position:fixed; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px; z-index:75; box-shadow:0 4px 24px rgba(0,0,0,0.5); white-space:nowrap; }
 .ts-popover.show { display:block; }
@@ -272,7 +274,7 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 <div class="app">
   <div class="header">
     <h1>Timing Trainer</h1>
-    <div class="status" id="status"><span class="s-dot off"></span></div>
+    <div class="status" id="status"></div>
     <div class="settings-wrap">
       <div id="audioIcon" style="display:none">
         <svg class="audio-icon-svg active" id="iconWired" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" color="var(--text-dim)"><path d="M3 18v-6a9 9 0 0118 0v6"/><path d="M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3v5zM3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3v5z"/></svg>
@@ -397,8 +399,8 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 
 <div class="transport">
   <div class="transport-actions">
-    <div class="action-btn" onclick="openSettingsPanel('audio')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 010 7.07"/></svg></div>
-    <div class="action-btn" onclick="openSettingsPanel('mic')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 005.12 2.12M15 9.34V4a3 3 0 00-5.94-.6"/><path d="M17 16.95A7 7 0 015 12v-2m14 0v2c0 .76-.13 1.49-.35 2.17"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></div>
+    <div class="action-btn" id="btnAudio" onclick="openSettingsPanel('audio')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 010 7.07"/></svg></div>
+    <div class="action-btn" id="btnMic" onclick="openSettingsPanel('mic')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></div>
     <div class="go-stop-wrap">
       <div class="tr-btn btn-go" id="btnGo" onclick="handleGo()"><div class="btn-go-inner">GO</div></div>
       <div class="tr-btn btn-stop" id="btnStop" onclick="handleStop()" style="display:none">STOP</div>
@@ -648,6 +650,7 @@ function clearPattern() { measures = measures.map(function() { return defaultMea
    AUDIO INIT
    ═══════════════════════════════════════════ */
 var micSrcNode = null; // keep reference so we can disconnect on switch
+var _micReconnecting = false, _lastMicReconnect = 0;
 
 async function ensureInit() {
   if (isInit) return true;
@@ -662,11 +665,25 @@ async function ensureInit() {
     isInit = true;
     updateMicStatus();
     await populateMicList();
+    detectAudioDevice(); // re-detect with labels now available after permission grant
     return true;
   } catch(e) { alert('Mic access required: ' + e.message); return false; }
 }
 
 async function connectMic(deviceId) {
+  // If existing stream is still alive and same device, just reconnect the node
+  if (micStream && !deviceId) {
+    var hasLive = micStream.getTracks().some(function(t) { return t.readyState === 'live'; });
+    if (hasLive) {
+      if (micSrcNode) micSrcNode.disconnect();
+      micSrcNode = audioCtx.createMediaStreamSource(micStream);
+      if (!analyser) { analyser = audioCtx.createAnalyser(); analyser.fftSize = 1024; analyser.smoothingTimeConstant = 0; }
+      micSrcNode.connect(analyser);
+      micData = new Uint8Array(analyser.fftSize);
+      hitArmed = true;
+      return;
+    }
+  }
   // Stop previous stream tracks and release hardware
   if (micStream) {
     micStream.getTracks().forEach(function(t) { t.stop(); });
@@ -733,12 +750,22 @@ async function switchMic() {
    ═══════════════════════════════════════════ */
 function updateMicStatus() {
   if (!isInit) return;
-  var statusEl = document.getElementById('status');
-  if (!statusEl || isPlaying) return; // don't overwrite "Playing" status
   var micOk = micStream && micStream.getTracks().some(function(t) { return t.readyState === 'live'; });
   var ctxOk = audioCtx && audioCtx.state === 'running';
+  // Update transport mic button icon
+  var btnMic = document.getElementById('btnMic');
+  if (btnMic) {
+    if (micOk && ctxOk) {
+      btnMic.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg><span class="mic-dot-on"></span>';
+    } else {
+      btnMic.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 005.12 2.12M15 9.34V4a3 3 0 00-5.94-.6"/><path d="M17 16.95A7 7 0 015 12v-2m14 0v2c0 .76-.13 1.49-.35 2.17"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>';
+    }
+  }
+  // Update header status
+  var statusEl = document.getElementById('status');
+  if (!statusEl || isPlaying) return;
   if (micOk && ctxOk) {
-    statusEl.innerHTML = '<span class="s-dot on"></span>Mic active';
+    statusEl.innerHTML = '';
   } else {
     statusEl.innerHTML = '<span class="s-dot off"></span>Mic interrupted';
   }
@@ -914,37 +941,18 @@ function beamLevel(t) { return t==='e'||t==='et'?1:t==='s'?2:t==='t'?3:0; }
 function renderPat() {
   var container = document.getElementById('patContainer');
   container.innerHTML = '';
+
+  // First pass: build each measure's bar element and estimate its width
+  var measData = [];
   measures.forEach(function(measure, mi) {
-    var row = document.createElement('div');
-    row.className = 'measure-row';
-    if (mi === 0) {
-      var tsEl = document.createElement('div');
-      tsEl.className = 'ts-inline';
-      tsEl.innerHTML = '<span class="ts-inline-top">' + tsTop + '</span><span class="ts-inline-bot">' + tsBot + '</span>';
-      tsEl.onclick = function(ev) { toggleTsPopover(ev); };
-      row.appendChild(tsEl);
-    } else {
-      var label = document.createElement('div');
-      label.className = 'measure-label';
-      label.textContent = (mi + 1);
-      row.appendChild(label);
-    }
-
-    // Opening bar line (except first measure)
-    if (mi > 0) {
-      var bl = document.createElement('div');
-      bl.className = 'bar-line';
-      row.appendChild(bl);
-    }
-
     var bar = document.createElement('div');
     bar.className = 'pattern-bar';
     bar.dataset.measure = mi;
 
-    // Build columns first
     var cols = [];
     var tickPositions = [];
     var tp = 0;
+    var estWidth = 0;
     measure.forEach(function(note, ni) {
       var col = document.createElement('div');
       col.className = 'beat-col';
@@ -953,7 +961,10 @@ function renderPat() {
       col.dataset.noteType = note.t;
       var widthPx = Math.max(26, Math.round(note.dur / 24 * 48));
       if (note.t === 't' || note.t === 'tr') widthPx = Math.max(32, widthPx);
+      col.style.width = widthPx + 'px';
       col.style.minWidth = widthPx + 'px';
+      col.style.maxWidth = widthPx + 'px';
+      estWidth += widthPx;
       var svgW = 36, svgH = 48;
 
       var sym = document.createElement('div');
@@ -972,7 +983,7 @@ function renderPat() {
       tp += note.dur;
     });
 
-    // Scan for triplet groups (runs of 3 consecutive same-type triplets)
+    // Scan for triplet groups
     var tripGroups = {};
     var i = 0;
     while (i < cols.length) {
@@ -986,7 +997,7 @@ function renderPat() {
       }
     }
 
-    // Scan for beam groups (consecutive beamable non-rest non-triplet notes within same beat)
+    // Scan for beam groups
     var beamGroups = {};
     var bi = 0;
     while (bi < cols.length) {
@@ -1016,7 +1027,7 @@ function renderPat() {
       }
     }
 
-    // Beam eighth triplets within their triplet groups
+    // Beam eighth triplets
     Object.keys(tripGroups).forEach(function(si) {
       si = parseInt(si);
       if (tripGroups[si] === 'et') {
@@ -1027,7 +1038,7 @@ function renderPat() {
       }
     });
 
-    // Check if any beat has subdivisions (multiple notes)
+    // Beat separators
     var beatHasSub = {};
     for (var si = 0; si < cols.length; si++) {
       var b = Math.floor(tickPositions[si] / 24);
@@ -1035,6 +1046,10 @@ function renderPat() {
     }
     var needsSeps = false;
     for (var bk in beatHasSub) { if (beatHasSub[bk] > 1) { needsSeps = true; break; } }
+    if (needsSeps) {
+      var numBeats = Object.keys(beatHasSub).length;
+      estWidth += Math.max(0, numBeats - 1) * 3;
+    }
 
     // Append to bar with beat separators, beam groups, and triplet grouping
     var ci = 0;
@@ -1076,17 +1091,71 @@ function renderPat() {
       }
     }
 
-    row.appendChild(bar);
+    measData.push({ bar: bar, mi: mi, width: estWidth });
+  });
 
-    if (mi === measures.length - 1) {
+  // Second pass: pack measures into rows
+  var ROW_BUDGET = 470;
+  var LABEL_W = 30;
+  var BARLINE_W = 8;
+  var DBLBAR_W = 13;
+  var currentRow = null;
+  var currentRowWidth = 0;
+  var firstInRow = true;
+
+  measData.forEach(function(md, idx) {
+    var isLast = idx === measData.length - 1;
+    var needed = md.width + (firstInRow ? 0 : BARLINE_W) + (isLast ? DBLBAR_W : 0);
+
+    // Start new row if this measure won't fit
+    if (!currentRow || (!firstInRow && currentRowWidth + needed > ROW_BUDGET)) {
+      if (currentRow) container.appendChild(currentRow);
+      currentRow = document.createElement('div');
+      currentRow.className = 'measure-row';
+
+      if (idx === 0) {
+        var tsEl = document.createElement('div');
+        tsEl.className = 'ts-inline';
+        tsEl.innerHTML = '<span class="ts-inline-top">' + tsTop + '</span><span class="ts-inline-bot">' + tsBot + '</span>';
+        tsEl.onclick = function(ev) { toggleTsPopover(ev); };
+        currentRow.appendChild(tsEl);
+      } else {
+        var label = document.createElement('div');
+        label.className = 'measure-label';
+        label.textContent = (md.mi + 1);
+        currentRow.appendChild(label);
+        // Opening bar line at start of continuation rows
+        var obl = document.createElement('div');
+        obl.className = 'bar-line';
+        currentRow.appendChild(obl);
+      }
+
+      currentRowWidth = LABEL_W;
+      firstInRow = true;
+    }
+
+    // Bar line between measures in same row
+    if (!firstInRow) {
+      var bl = document.createElement('div');
+      bl.className = 'bar-line';
+      currentRow.appendChild(bl);
+      currentRowWidth += BARLINE_W;
+    }
+
+    currentRow.appendChild(md.bar);
+    currentRowWidth += md.width;
+    firstInRow = false;
+
+    // Double bar line at the very end
+    if (isLast) {
       var dbl = document.createElement('div');
       dbl.className = 'bar-line-double';
       dbl.innerHTML = '<div class="bl-thin"></div><div class="bl-thick"></div>';
-      row.appendChild(dbl);
+      currentRow.appendChild(dbl);
     }
-
-    container.appendChild(row);
   });
+
+  if (currentRow) container.appendChild(currentRow);
   // Draw beam overlays after DOM is built
   addBeamOverlays();
 }
@@ -1622,6 +1691,11 @@ function playCountClick(t) {
 }
 
 function startMetro(skipCountoff) {
+  // Ensure AudioContext is running before scheduling (iOS may have suspended it)
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume().then(function() { startMetro(skipCountoff); });
+    return;
+  }
   isPlaying = true;
   if (!skipCountoff) { sessH = []; sessStart = Date.now(); sessBpm = bpm; clearMarkers(); clearResults(); }
   sBeats = []; curSub = 0; lastHit = 0; hitArmed = true;
@@ -1634,7 +1708,7 @@ function startMetro(skipCountoff) {
 
   document.getElementById('btnGo').style.display = 'none';
   document.getElementById('btnStop').style.display = '';
-  var trHint = document.getElementById('trHint'); if (trHint) trHint.style.display = 'none';
+  var trHint = document.getElementById('trHint'); if (trHint) trHint.style.visibility = 'hidden';
   var statusEl = document.getElementById('status');
 
   var loopStart, loopCount = 0;
@@ -1825,7 +1899,7 @@ function stopMetro() {
   document.querySelectorAll('.beat-col').forEach(function(el) { el.classList.remove('active'); });
   document.getElementById('btnStop').style.display = 'none';
   document.getElementById('btnGo').style.display = '';
-  var trHint2 = document.getElementById('trHint'); if (trHint2) trHint2.style.display = '';
+  var trHint2 = document.getElementById('trHint'); if (trHint2) trHint2.style.visibility = '';
   updateMicStatus();
   if (sessH.length > 0 && !_restarting) {
     showInlineTendencies();
@@ -2397,25 +2471,42 @@ function updateAudioIcon() {
   document.getElementById('iconWired').setAttribute('class', 'audio-icon-svg' + (aMode === 'w' ? ' active' : ''));
   document.getElementById('iconSpeaker').setAttribute('class', 'audio-icon-svg' + (aMode === 's' ? ' active' : ''));
   document.getElementById('iconBT').setAttribute('class', 'audio-icon-svg' + (aMode === 'bt' ? ' active' : ''));
+  // Update transport audio button SVG
+  var btn = document.getElementById('btnAudio');
+  if (!btn) return;
+  var svgs = {
+    w: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0118 0v6"/><path d="M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3v5zM3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3v5z"/></svg>',
+    s: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 010 14.14"/><path d="M15.54 8.46a5 5 0 010 7.07"/></svg>',
+    bt: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l10 10-5 5V2l5 5L7 17"/></svg>'
+  };
+  btn.innerHTML = svgs[aMode] || svgs.s;
 }
 
 function detectAudioDevice() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
   navigator.mediaDevices.enumerateDevices().then(function(devices) {
     var outputs = devices.filter(function(d) { return d.kind === 'audiooutput' && d.deviceId !== 'default' && d.deviceId !== 'communications'; });
-    var labels = outputs.map(function(d) { return d.label.toLowerCase(); });
+    var inputs = devices.filter(function(d) { return d.kind === 'audioinput'; });
+    var outputLabels = outputs.map(function(d) { return d.label.toLowerCase(); });
+    var inputLabels = inputs.map(function(d) { return d.label.toLowerCase(); });
+    var allLabels = outputLabels.concat(inputLabels);
     var detected = 's';
     var btWords = ['airpod', 'bluetooth', 'wireless', 'buds', 'beats', 'galaxy buds', 'jabra', 'sony wf', 'bose'];
-    var wiredWords = ['headphone', 'headset', 'wired', 'usb', 'external'];
-    for (var i = 0; i < labels.length; i++) {
+    var wiredWords = ['headphone', 'headset', 'wired', 'usb', 'external', 'earpod'];
+    for (var i = 0; i < allLabels.length; i++) {
       for (var b = 0; b < btWords.length; b++) {
-        if (labels[i].indexOf(btWords[b]) !== -1) { detected = 'bt'; break; }
+        if (allLabels[i].indexOf(btWords[b]) !== -1) { detected = 'bt'; break; }
       }
       if (detected === 'bt') break;
       for (var w = 0; w < wiredWords.length; w++) {
-        if (labels[i].indexOf(wiredWords[w]) !== -1) { detected = 'w'; break; }
+        if (allLabels[i].indexOf(wiredWords[w]) !== -1) { detected = 'w'; break; }
       }
       if (detected === 'w') break;
+    }
+    // Fallback: if non-default outputs exist but no keywords matched, assume wired
+    if (detected === 's' && outputs.length > 0) {
+      var hasLabels = outputs.some(function(d) { return d.label !== ''; });
+      if (!hasLabels) detected = 'w'; // iOS often hides wired headphone labels
     }
     if (detected !== aMode) { setMode(detected); }
   }).catch(function() {});
@@ -2510,6 +2601,7 @@ function showHelp() {
   document.getElementById('calVolS').value = clickVol;
   document.getElementById('calVolV').textContent = clickVol + '%';
   loadLat();
+  updateAudioIcon();
   detectAudioDevice();
   // Restore click grid settings
   var sCM = localStorage.getItem('tt_cm');
@@ -2569,6 +2661,19 @@ function showHelp() {
       // Resume AudioContext if suspended (iOS backgrounds suspend it)
       if (audioCtx && audioCtx.state === 'suspended') {
         audioCtx.resume().then(function() { updateMicStatus(); }).catch(function() {});
+      }
+      // Reconnect dead mic tracks (iOS kills them on background/screen lock)
+      var micDead = isInit && micStream && micStream.getTracks().every(function(t) { return t.readyState === 'ended'; });
+      var now = Date.now();
+      if (micDead && !_micReconnecting && (now - _lastMicReconnect) > 2000) {
+        _micReconnecting = true;
+        _lastMicReconnect = now;
+        var devId = document.getElementById('micSel').value || undefined;
+        connectMic(devId).then(function() {
+          _micReconnecting = false;
+          if (isPlaying) { stopHitDet(); startHitDet(); }
+          updateMicStatus();
+        }).catch(function() { _micReconnecting = false; updateMicStatus(); });
       }
       if (isPlaying && !wakeLock && 'wakeLock' in navigator) {
         navigator.wakeLock.request('screen').then(function(l) { wakeLock = l; }).catch(function() {});
