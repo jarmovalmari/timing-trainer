@@ -1072,13 +1072,11 @@ function handleBpmTap(tapTime) {
   }, 2000);
 }
 
-function openBpmInput() {
-  _bpmEditing = true;
+/* Prepare a hidden BPM input & focus it (must be called in user gesture for mobile keyboard).
+   Returns the input element. Call revealBpmInput(inp) after long-press threshold. */
+function prepareBpmInput() {
   var display = document.getElementById('bpmDisplay');
-  var valEl = document.getElementById('bpmVal');
   var hint = document.getElementById('bpmHint');
-  hint.classList.remove('show');
-  valEl.style.display = 'none';
   var inp = document.createElement('input');
   inp.type = 'tel';
   inp.className = 'bpm-input';
@@ -1086,12 +1084,30 @@ function openBpmInput() {
   inp.value = bpm;
   inp.setAttribute('inputmode', 'numeric');
   inp.setAttribute('pattern', '[0-9]*');
+  // Off-screen but focusable so mobile keyboard opens
+  inp.style.position = 'absolute';
+  inp.style.opacity = '0';
+  inp.style.pointerEvents = 'none';
   display.insertBefore(inp, hint);
+  inp.focus();
+  return inp;
+}
 
-  var created = Date.now();
+function revealBpmInput(inp) {
+  _bpmEditing = true;
+  var valEl = document.getElementById('bpmVal');
+  var hint = document.getElementById('bpmHint');
+  hint.classList.remove('show');
+  valEl.style.display = 'none';
+  // Make visible
+  inp.style.position = '';
+  inp.style.opacity = '';
+  inp.style.pointerEvents = '';
+  inp.select();
+
+  var revealed = Date.now();
   function commit() {
-    // Ignore spurious blur within 200ms of creation (from dblclick event)
-    if (Date.now() - created < 200) {
+    if (Date.now() - revealed < 200) {
       setTimeout(function() { inp.focus(); inp.select(); }, 0);
       return;
     }
@@ -1109,8 +1125,6 @@ function openBpmInput() {
     if (e.key === 'Enter') { e.preventDefault(); inp.blur(); }
     if (e.key === 'Escape') { inp.value = bpm; inp.blur(); }
   });
-  inp.focus();
-  inp.select();
 }
 
 function adjTS(w, d) {
@@ -2920,23 +2934,32 @@ function showHelp() {
   /* BPM display: tap → tap tempo, long press → direct input */
   (function() {
     var bd = document.getElementById('bpmDisplay');
-    var _longPress = null, _didLongPress = false;
+    var _longPress = null, _didLongPress = false, _pendingInp = null;
     bd.addEventListener('pointerdown', function(e) {
       if (_bpmEditing) return;
       if (e.target.id === 'bpmInp') return;
       _didLongPress = false;
+      // Create and focus input immediately (in user gesture) so mobile keyboard is primed
+      _pendingInp = prepareBpmInput();
       _longPress = setTimeout(function() {
         _longPress = null;
         _didLongPress = true;
         _tapTimes = [];
         clearTimeout(_tapTimeout);
-        var hint = document.getElementById('bpmHint');
-        hint.classList.remove('show');
-        openBpmInput();
+        revealBpmInput(_pendingInp);
+        _pendingInp = null;
       }, 400);
     });
-    bd.addEventListener('pointerup', function() { if (_longPress) { clearTimeout(_longPress); _longPress = null; } });
-    bd.addEventListener('pointercancel', function() { if (_longPress) { clearTimeout(_longPress); _longPress = null; } });
+    function cancelLongPress() {
+      if (_longPress) {
+        clearTimeout(_longPress);
+        _longPress = null;
+        // Remove the hidden input
+        if (_pendingInp) { _pendingInp.remove(); _pendingInp = null; }
+      }
+    }
+    bd.addEventListener('pointerup', cancelLongPress);
+    bd.addEventListener('pointercancel', cancelLongPress);
     bd.addEventListener('contextmenu', function(e) { e.preventDefault(); });
     bd.addEventListener('click', function(e) {
       if (_bpmEditing) return;
