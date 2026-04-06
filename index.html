@@ -31,6 +31,7 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .bpm-input::-webkit-outer-spin-button, .bpm-input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
 .bpm-hint { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--text-dim); margin-top:2px; opacity:0; transition:opacity 0.2s; pointer-events:none; }
 .bpm-hint.show { opacity:1; }
+.bpm-display:hover .bpm-hint { opacity:1; }
 .bpm-label { display:none; }
 .bpm-slider { width:100%; margin:12px 0 4px; -webkit-appearance:none; appearance:none; height:4px; background:var(--surface2); border-radius:2px; outline:none; }
 .bpm-slider::-webkit-slider-thumb { -webkit-appearance:none; width:22px; height:22px; background:var(--accent); border-radius:50%; cursor:pointer; box-shadow:0 0 12px rgba(184,148,61,0.3); }
@@ -304,7 +305,7 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
     </div>
   </div>
   <div class="section" id="bpmSection" style="position:relative">
-    <div class="bpm-display" id="bpmDisplay"><div class="bpm-value" id="bpmVal">100</div><div class="bpm-hint" id="bpmHint">tap tempo · double-click to type</div></div>
+    <div class="bpm-display" id="bpmDisplay"><div class="bpm-value" id="bpmVal">100</div><div class="bpm-hint" id="bpmHint">tap tempo · hold to type</div></div>
     <div style="display:flex;align-items:center;gap:8px;margin:8px 0 0"><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim)">20</span><input type="range" class="bpm-slider" id="bpmSlider" min="20" max="300" value="100" style="margin:0"><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim)">300</span></div>
   </div>
   <div class="section">
@@ -1036,7 +1037,7 @@ function updateSliderFill(el) { var pct = (el.value - el.min) / (el.max - el.min
 function setBpm(v) { bpm = v; var sl = document.getElementById('bpmSlider'); sl.value = v; document.getElementById('bpmVal').textContent = bpm; updateSliderFill(sl); }
 
 /* BPM tap tempo + direct input */
-var _tapTimes = [], _tapTimeout = null, _bpmEditing = false;
+var _tapTimes = [], _tapTimeout = null, _bpmEditing = false, _bpmOpenTimer = null;
 
 function handleBpmTap(tapTime) {
   if (_bpmEditing) return;
@@ -2915,40 +2916,32 @@ function showHelp() {
       }
     }
   });
-  /* BPM display: double-click → direct input, single clicks → tap tempo */
+  /* BPM display: tap → tap tempo, long press → direct input */
   (function() {
     var bd = document.getElementById('bpmDisplay');
-    var _clickTimer = null;
-    var _dblClicked = false;
+    var _longPress = null, _didLongPress = false;
+    bd.addEventListener('pointerdown', function(e) {
+      if (_bpmEditing) return;
+      if (e.target.id === 'bpmInp') return;
+      _didLongPress = false;
+      _longPress = setTimeout(function() {
+        _longPress = null;
+        _didLongPress = true;
+        _tapTimes = [];
+        clearTimeout(_tapTimeout);
+        var hint = document.getElementById('bpmHint');
+        hint.classList.remove('show');
+        openBpmInput();
+      }, 400);
+    });
+    bd.addEventListener('pointerup', function() { if (_longPress) { clearTimeout(_longPress); _longPress = null; } });
+    bd.addEventListener('pointercancel', function() { if (_longPress) { clearTimeout(_longPress); _longPress = null; } });
+    bd.addEventListener('contextmenu', function(e) { e.preventDefault(); });
     bd.addEventListener('click', function(e) {
       if (_bpmEditing) return;
       if (e.target.id === 'bpmInp') return;
-      var ts = Date.now();
-      // If already in tap tempo mode (1+ taps), no delay needed
-      if (_tapTimes.length >= 1) {
-        handleBpmTap(ts);
-        return;
-      }
-      // First tap: delay to distinguish from double-click
-      if (_clickTimer) { clearTimeout(_clickTimer); _clickTimer = null; }
-      _clickTimer = setTimeout(function() {
-        _clickTimer = null;
-        if (!_dblClicked) handleBpmTap(ts);
-        _dblClicked = false;
-      }, 250);
-    });
-    bd.addEventListener('dblclick', function(e) {
-      if (e.target.id === 'bpmInp') return;
-      _dblClicked = true;
-      if (_clickTimer) { clearTimeout(_clickTimer); _clickTimer = null; }
-      // Cancel any tap tempo state
-      _tapTimes = [];
-      clearTimeout(_tapTimeout);
-      _bpmEditing = false;
-      var hint = document.getElementById('bpmHint');
-      hint.classList.remove('show');
-      // Small delay so click events settle before focusing input
-      setTimeout(openBpmInput, 50);
+      if (_didLongPress) { _didLongPress = false; return; }
+      handleBpmTap(Date.now());
     });
   })();
   document.getElementById('sensS').addEventListener('input', function(e) { sens = parseInt(e.target.value); document.getElementById('sensV').textContent = sens; document.getElementById('micTh').style.left = (sens/128*100)+'%'; });
