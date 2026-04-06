@@ -73,10 +73,10 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .cg { color:var(--green); } .cr { color:var(--red); } .cb { color:var(--blue); }
 
 /* Bar lines */
-.bar-line { width:2px; height:58px; background:var(--text-dim); margin:0 3px; align-self:flex-end; flex-shrink:0; }
-.bar-line-double { display:flex; gap:3px; align-self:flex-end; flex-shrink:0; margin:0 3px; }
-.bar-line-double .bl-thin { width:1.5px; height:58px; background:var(--text-dim); }
-.bar-line-double .bl-thick { width:4px; height:58px; background:var(--text-dim); border-radius:1px; }
+.bar-line { width:2px; height:36px; background:var(--text-dim); margin:0 3px; align-self:flex-start; margin-top:22px; flex-shrink:0; }
+.bar-line-double { display:flex; gap:3px; align-self:flex-start; margin-top:22px; flex-shrink:0; margin-left:3px; margin-right:3px; }
+.bar-line-double .bl-thin { width:1.5px; height:36px; background:var(--text-dim); }
+.bar-line-double .bl-thick { width:4px; height:36px; background:var(--text-dim); border-radius:1px; }
 
 /* Beam group */
 .beam-group { display:flex; align-items:flex-end; position:relative; }
@@ -205,7 +205,7 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .result-stats { display:flex; gap:10px; flex-wrap:wrap; }
 .result-stat { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--text-dim); }
 .result-stat span { color:var(--text); font-weight:600; }
-.result-clear { font-size:11px; padding:4px 10px; background:var(--surface); border:1px solid var(--border); border-radius:4px; color:var(--text-dim); cursor:pointer; }
+.result-clear { font-size:11px; padding:5px 6px 3px; background:var(--surface); border:1px solid var(--border); border-radius:4px; color:var(--text-dim); cursor:pointer; display:flex; align-items:center; justify-content:center; }
 .result-clear:active { background:var(--border); }
 .result-meta { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--text-dim); margin-bottom:6px; }
 .share-ov { position:fixed; inset:0; background:#000; z-index:200; display:flex; align-items:center; justify-content:center; }
@@ -229,6 +229,22 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .settings-popover-close { font-size:18px; color:var(--text-dim); cursor:pointer; padding:2px 6px; }
 .settings-backdrop { display:none; position:fixed; inset:0; z-index:80; background:rgba(0,0,0,0.5); }
 .settings-backdrop.show { display:block; }
+/* Saved patterns sheet */
+.pat-sheet { position:fixed; bottom:0; left:0; right:0; max-width:540px; margin:0 auto; max-height:70dvh; overflow-y:auto; background:var(--surface); border-top:1px solid var(--border); border-radius:16px 16px 0 0; padding:16px 16px calc(16px + env(safe-area-inset-bottom)); z-index:81; transform:translateY(100%); transition:transform 0.25s ease; box-shadow:0 -8px 32px rgba(0,0,0,0.4); }
+.pat-sheet.show { transform:translateY(0); }
+.pat-sheet-backdrop { display:none; position:fixed; inset:0; z-index:80; background:rgba(0,0,0,0.5); }
+.pat-sheet-backdrop.show { display:block; }
+.pat-save-row { display:flex; gap:8px; margin-bottom:14px; }
+.pat-save-input { flex:1; font-family:'DM Sans',sans-serif; font-size:13px; padding:8px 10px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text); outline:none; }
+.pat-save-input::placeholder { color:var(--text-dim); }
+.pat-save-btn { padding:8px 14px; background:var(--accent); color:var(--bg); border:none; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap; }
+.pat-list-item { display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; margin-bottom:6px; cursor:pointer; transition:background 0.1s; }
+.pat-list-item:active { background:var(--border); }
+.pat-list-name { font-size:13px; font-weight:500; }
+.pat-list-meta { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--text-dim); margin-top:2px; }
+.pat-list-del { padding:4px 8px; font-size:16px; color:var(--text-dim); cursor:pointer; flex-shrink:0; }
+.pat-list-del:active { color:var(--red); }
+.pat-sheet-empty { font-size:12px; color:var(--text-dim); text-align:center; padding:20px 0; }
 .help-link { color:var(--accent); text-decoration:underline; }
 .share-card .share-title { font-size:14px; font-weight:600; margin-bottom:12px; }
 .share-btn { display:block; width:100%; padding:12px; margin-bottom:8px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:13px; cursor:pointer; text-align:center; }
@@ -285,11 +301,11 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
   </div>
   <div class="section" id="bpmSection" style="position:relative">
     <div class="bpm-display"><div class="bpm-value" id="bpmVal">100</div></div>
-    <div style="display:flex;align-items:center;gap:8px;margin:8px 0 0"><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim)">30</span><input type="range" class="bpm-slider" id="bpmSlider" min="30" max="240" value="100" style="margin:0"><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim)">240</span></div>
+    <div style="display:flex;align-items:center;gap:8px;margin:8px 0 0"><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim)">20</span><input type="range" class="bpm-slider" id="bpmSlider" min="20" max="300" value="100" style="margin:0"><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim)">300</span></div>
   </div>
   <div class="section">
     <div class="section-title">
-      <span>Pattern</span>
+      <span onclick="openPatSheet()" style="cursor:pointer">Pattern</span>
       <div class="pat-controls">
         <div class="pat-btn" onclick="addMeasure()">+ Bar</div>
         <div class="pat-btn" onclick="removeMeasure()">&#8722; Bar</div>
@@ -442,6 +458,18 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
     <div class="c-btn c-apply" onclick="beginCalib()">Start</div>
     <div class="c-btn c-cancel" onclick="closeCalib()">Cancel</div>
   </div>
+</div>
+
+<!-- Saved Patterns Sheet -->
+<div class="pat-sheet-backdrop" id="patSheetBg" onclick="closePatSheet()"></div>
+<div class="pat-sheet" id="patSheet">
+  <div class="settings-popover-handle"></div>
+  <div class="settings-popover-title">Saved Patterns <span class="settings-popover-close" onclick="closePatSheet()">&times;</span></div>
+  <div class="pat-save-row">
+    <input class="pat-save-input" id="patSaveName" placeholder="Pattern name..." maxlength="40">
+    <div class="pat-save-btn" onclick="saveCurrentPattern()">Save</div>
+  </div>
+  <div id="patList"></div>
 </div>
 
 <!-- Note Picker -->
@@ -640,6 +668,77 @@ function defaultMeasure() {
   while (rem >= 6) { m.push({t:'s', dur:6}); rem -= 6; }
   while (rem >= 3) { m.push({t:'t', dur:3}); rem -= 3; }
   return m;
+}
+
+/* ═══════════════════════════════════════════
+   SAVED PATTERNS
+   ═══════════════════════════════════════════ */
+function getSavedPatterns() {
+  try { return JSON.parse(localStorage.getItem('tt_patterns')) || []; } catch(e) { return []; }
+}
+function setSavedPatterns(arr) { localStorage.setItem('tt_patterns', JSON.stringify(arr)); }
+
+function openPatSheet() {
+  renderPatList();
+  document.getElementById('patSheet').classList.add('show');
+  document.getElementById('patSheetBg').classList.add('show');
+  document.getElementById('patSaveName').value = '';
+}
+function closePatSheet() {
+  document.getElementById('patSheet').classList.remove('show');
+  document.getElementById('patSheetBg').classList.remove('show');
+}
+
+function saveCurrentPattern() {
+  var name = document.getElementById('patSaveName').value.trim();
+  if (!name) { document.getElementById('patSaveName').focus(); return; }
+  var pats = getSavedPatterns();
+  pats.unshift({ name: name, tsTop: tsTop, tsBot: tsBot, measures: measures });
+  setSavedPatterns(pats);
+  document.getElementById('patSaveName').value = '';
+  renderPatList();
+}
+
+function loadPattern(idx) {
+  var pats = getSavedPatterns();
+  if (!pats[idx]) return;
+  var p = pats[idx];
+  tsTop = p.tsTop; tsBot = p.tsBot;
+  measures = p.measures;
+  // Update time sig display
+  var inlT = document.querySelector('.ts-inline-top');
+  var inlB = document.querySelector('.ts-inline-bot');
+  if (inlT) inlT.textContent = tsTop;
+  if (inlB) inlB.textContent = tsBot;
+  renderPat();
+  closePatSheet();
+  if (isPlaying) restartMetro();
+}
+
+function deletePattern(idx, ev) {
+  ev.stopPropagation();
+  var pats = getSavedPatterns();
+  pats.splice(idx, 1);
+  setSavedPatterns(pats);
+  renderPatList();
+}
+
+function renderPatList() {
+  var pats = getSavedPatterns();
+  var el = document.getElementById('patList');
+  if (!pats.length) {
+    el.innerHTML = '<div class="pat-sheet-empty">No saved patterns yet</div>';
+    return;
+  }
+  var html = '';
+  pats.forEach(function(p, i) {
+    var bars = p.measures ? p.measures.length : '?';
+    var ts = (p.tsTop || 4) + '/' + (p.tsBot || 4);
+    html += '<div class="pat-list-item" onclick="loadPattern('+i+')">' +
+      '<div><div class="pat-list-name">'+p.name+'</div><div class="pat-list-meta">'+ts+' \u00b7 '+bars+' bar'+(bars!==1?'s':'')+'</div></div>' +
+      '<div class="pat-list-del" onclick="deletePattern('+i+',event)">&times;</div></div>';
+  });
+  el.innerHTML = html;
 }
 
 function addMeasure() { measures.push(defaultMeasure()); renderPat(); if (isPlaying) restartMetro(); }
@@ -1938,9 +2037,21 @@ function showInlineTendencies() {
 /* ═══════════════════════════════════════════
    HIT DETECTION
    ═══════════════════════════════════════════ */
+function getMinNoteMs() {
+  var minDur = 24; // quarter note ticks (fallback)
+  measures.forEach(function(m) {
+    m.forEach(function(n) { if (!NT[n.t].rest && n.dur < minDur) minDur = n.dur; });
+  });
+  return (minDur / 24) * (60000 / bpm);
+}
+
 function startHitDet() {
   if (micPoll) clearInterval(micPoll);
   hitArmed = true;
+  // Tempo-aware lockout: never exceed 80% of the shortest note interval
+  var noteInt = getMinNoteMs();
+  var eML = Math.max(MR + 10, Math.min(ML, noteInt * 0.8));
+  var eRA = noteInt < 150 ? 0.5 : RA; // relax re-arm threshold at fast tempos
   micPoll = setInterval(function() {
     if (!analyser || !isPlaying) return;
     var p = getPeak();
@@ -1962,7 +2073,7 @@ function startHitDet() {
         hitArmed = false;
         procHit(now);
       }
-    } else if (p < eSens * RA || (nowMs - lastHit) > ML) {
+    } else if (p < eSens * eRA || (nowMs - lastHit) > eML) {
       hitArmed = true;
     }
   }, 3);
@@ -2275,7 +2386,7 @@ function showResultStrip() {
   var strip = document.getElementById('resultStrip');
   strip.innerHTML =
     '<div class="result-strip">' +
-    '<div class="result-tend"><span style="'+tstyle+'">'+tend+'</span><div style="display:flex;gap:6px"><div class="result-clear" onclick="shareResults()">Share</div><div class="result-clear" onclick="clearResults()">Clear</div></div></div>' +
+    '<div class="result-tend"><span style="'+tstyle+'">'+tend+'</span><div style="display:flex;gap:6px"><div class="result-clear" onclick="shareResults()" title="Share"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></div><div class="result-clear" onclick="clearResults()" title="Clear"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div></div></div>' +
     '<div class="result-meta">' + sessBpm + ' BPM \u00b7 ' + durStr + ' \u00b7 ' + sessH.length + ' hits</div>' +
     '<div class="result-stats">' +
     '<div class="result-stat">avg <span>'+Math.round(avg)+'ms</span></div>' +
@@ -2284,11 +2395,16 @@ function showResultStrip() {
     '<div class="result-stat">on-time <span style="color:var(--green)">'+oP+'%</span></div>' +
     '</div>' + histHtml + calNote + '</div>';
   strip.style.display = 'block';
+  // Hide pattern area so results take over the section
+  document.querySelector('.pat-controls').style.display = 'none';
+  document.getElementById('patContainer').style.display = 'none';
 }
 
 function clearResults() {
   document.getElementById('resultStrip').style.display = 'none';
   document.getElementById('resultStrip').innerHTML = '';
+  document.querySelector('.pat-controls').style.display = '';
+  document.getElementById('patContainer').style.display = '';
   clearMarkers();
 }
 
