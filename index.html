@@ -68,8 +68,9 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .hit-marker { height:16px; position:relative; width:100%; margin-top:2px; overflow:visible; }
 .hit-track { display:none; }
 .hit-center { display:none; }
-.hit-dot { position:absolute; top:2px; left:50%; width:8px; height:8px; border-radius:50%; transform:translateX(-4px); display:none; }
-.hit-dot.show { display:block; }
+.hit-dot { position:absolute; top:2px; left:50%; width:8px; height:8px; border-radius:50%; transform:translateX(-4px) scale(0); opacity:0; transition:none; }
+.hit-dot.show { transform:translateX(-4px) scale(1); opacity:1; animation:dotPop 0.18s ease-out; }
+@keyframes dotPop { 0% { transform:translateX(-4px) scale(2); opacity:0.6; } 40% { transform:translateX(-4px) scale(1); opacity:1; } 100% { transform:translateX(-4px) scale(1); opacity:1; } }
 .cg { color:var(--green); } .cr { color:var(--red); } .cb { color:var(--blue); }
 
 /* Bar lines */
@@ -677,7 +678,7 @@ async function connectMic(deviceId) {
     if (hasLive) {
       if (micSrcNode) micSrcNode.disconnect();
       micSrcNode = audioCtx.createMediaStreamSource(micStream);
-      if (!analyser) { analyser = audioCtx.createAnalyser(); analyser.fftSize = 1024; analyser.smoothingTimeConstant = 0; }
+      if (!analyser) { analyser = audioCtx.createAnalyser(); analyser.fftSize = 512; analyser.smoothingTimeConstant = 0; }
       micSrcNode.connect(analyser);
       micData = new Uint8Array(analyser.fftSize);
       hitArmed = true;
@@ -699,7 +700,7 @@ async function connectMic(deviceId) {
   micSrcNode = audioCtx.createMediaStreamSource(micStream);
   if (!analyser) {
     analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 1024;
+    analyser.fftSize = 512;
     analyser.smoothingTimeConstant = 0;
   }
   micSrcNode.connect(analyser);
@@ -1994,6 +1995,9 @@ function renderHit(mi, ni, off) {
   var color = Math.abs(off) <= 10 ? 'var(--green)' : (off < 0 ? 'var(--red)' : 'var(--blue)');
   dot.style.left = pct + '%';
   dot.style.background = color;
+  // Reset animation for repeated hits on same beat (loop restart)
+  dot.classList.remove('show');
+  void dot.offsetWidth; // force reflow to restart animation
   dot.classList.add('show');
 }
 
