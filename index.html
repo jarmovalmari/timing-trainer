@@ -49,7 +49,7 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .pat-controls { display:flex; gap:6px; }
 .pat-btn { font-size:10px; font-weight:500; padding:3px 8px; background:var(--surface2); border:1px solid var(--border); border-radius:4px; color:var(--text-dim); cursor:pointer; text-transform:none; letter-spacing:0; }
 .pat-btn:active { background:var(--border); }
-#patContainer { overflow-x:auto; overflow-y:visible; position:relative; }
+#patContainer { overflow-x:hidden; overflow-y:visible; position:relative; }
 .count-ov { position:absolute; inset:0; background:rgba(18,18,22,0.85); border-radius:12px; display:flex; align-items:center; justify-content:center; z-index:10; pointer-events:none; }
 .count-ov-beat { font-family:'JetBrains Mono',monospace; font-size:48px; font-weight:700; color:var(--accent); opacity:0.9; }
 .count-ov-beat.pulse { animation:countPulse 0.3s ease-out; }
@@ -1296,7 +1296,7 @@ function renderPat() {
 
   // Second pass: pack measures into rows
   var GAP = 6; // must match .measure-row gap
-  var ROW_BUDGET = 470;
+  var ROW_BUDGET = (container.clientWidth || 470) - 2; // -2 for rounding safety
   var LABEL_W = 30 + GAP;
   var BARLINE_W = 8 + GAP;
   var DBLBAR_W = 13 + GAP;
@@ -2896,6 +2896,12 @@ function showHelp() {
   setClickMutePct(clickMutePct);
   setGridSub(gridSub, true);
   buildPat();
+  // Re-pack rows on resize so pattern never overflows
+  var _resizeTimer = null;
+  window.addEventListener('resize', function() {
+    clearTimeout(_resizeTimer);
+    _resizeTimer = setTimeout(renderPat, 150);
+  });
   document.getElementById('bpmVal').textContent = bpm;
   var bpmSl = document.getElementById('bpmSlider');
   updateSliderFill(bpmSl);
