@@ -29,9 +29,6 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .bpm-value { font-family:'JetBrains Mono',monospace; font-size:88px; font-weight:800; line-height:1; letter-spacing:-6px; color:var(--accent); }
 .bpm-input { font-family:'JetBrains Mono',monospace; font-size:88px; font-weight:800; line-height:1; letter-spacing:-6px; color:var(--accent); background:none; border:none; border-bottom:2px solid var(--accent); outline:none; text-align:center; width:4ch; padding:0; -moz-appearance:textfield; }
 .bpm-input::-webkit-outer-spin-button, .bpm-input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
-.bpm-hint { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--text-dim); margin-top:2px; opacity:0; transition:opacity 0.2s; pointer-events:none; }
-.bpm-hint.show { opacity:1; }
-.bpm-display:hover .bpm-hint { opacity:1; }
 .bpm-label { display:none; }
 .bpm-slider { width:100%; margin:12px 0 4px; -webkit-appearance:none; appearance:none; height:4px; background:var(--surface2); border-radius:2px; outline:none; }
 .bpm-slider::-webkit-slider-thumb { -webkit-appearance:none; width:22px; height:22px; background:var(--accent); border-radius:50%; cursor:pointer; box-shadow:0 0 12px rgba(184,148,61,0.3); }
@@ -305,7 +302,7 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
     </div>
   </div>
   <div class="section" id="bpmSection" style="position:relative">
-    <div class="bpm-display" id="bpmDisplay"><div class="bpm-value" id="bpmVal">100</div><div class="bpm-hint" id="bpmHint">tap tempo · hold to type</div></div>
+    <div class="bpm-display" id="bpmDisplay"><div class="bpm-value" id="bpmVal">100</div></div>
     <div style="display:flex;align-items:center;gap:8px;margin:8px 0 0"><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim)">20</span><input type="range" class="bpm-slider" id="bpmSlider" min="20" max="300" value="100" style="margin:0"><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim)">300</span></div>
   </div>
   <div class="section">
@@ -1057,18 +1054,12 @@ function handleBpmTap(tapTime) {
     tapBpm = Math.max(20, Math.min(300, tapBpm));
     setBpm(tapBpm);
     if (isPlaying) restartMetro();
-    // Show hint
-    var hint = document.getElementById('bpmHint');
-    hint.textContent = 'tap tempo';
-    hint.classList.add('show');
   }
 
-  // After 2s of no taps, hide hint and reset
+  // After 2s of no taps, reset
   clearTimeout(_tapTimeout);
   _tapTimeout = setTimeout(function() {
     _tapTimes = [];
-    var hint = document.getElementById('bpmHint');
-    hint.classList.remove('show');
   }, 2000);
 }
 
@@ -1076,7 +1067,6 @@ function handleBpmTap(tapTime) {
    Returns the input element. Call revealBpmInput(inp) after long-press threshold. */
 function prepareBpmInput() {
   var display = document.getElementById('bpmDisplay');
-  var hint = document.getElementById('bpmHint');
   var inp = document.createElement('input');
   inp.type = 'tel';
   inp.className = 'bpm-input';
@@ -1088,7 +1078,7 @@ function prepareBpmInput() {
   inp.style.position = 'absolute';
   inp.style.opacity = '0';
   inp.style.pointerEvents = 'none';
-  display.insertBefore(inp, hint);
+  display.appendChild(inp);
   inp.focus();
   return inp;
 }
@@ -1096,8 +1086,6 @@ function prepareBpmInput() {
 function revealBpmInput(inp) {
   _bpmEditing = true;
   var valEl = document.getElementById('bpmVal');
-  var hint = document.getElementById('bpmHint');
-  hint.classList.remove('show');
   valEl.style.display = 'none';
   // Make visible
   inp.style.position = '';
@@ -2934,13 +2922,16 @@ function showHelp() {
   /* BPM display: tap → tap tempo, long press → direct input */
   (function() {
     var bd = document.getElementById('bpmDisplay');
-    var _longPress = null, _didLongPress = false, _pendingInp = null;
+    var _longPress = null, _primeTimer = null, _didLongPress = false, _pendingInp = null;
     bd.addEventListener('pointerdown', function(e) {
       if (_bpmEditing) return;
       if (e.target.id === 'bpmInp') return;
       _didLongPress = false;
-      // Create and focus input immediately (in user gesture) so mobile keyboard is primed
-      _pendingInp = prepareBpmInput();
+      // Delay input creation 150ms so quick taps never trigger keyboard
+      _primeTimer = setTimeout(function() {
+        _primeTimer = null;
+        _pendingInp = prepareBpmInput();
+      }, 150);
       _longPress = setTimeout(function() {
         _longPress = null;
         _didLongPress = true;
@@ -2951,10 +2942,10 @@ function showHelp() {
       }, 400);
     });
     function cancelLongPress() {
+      if (_primeTimer) { clearTimeout(_primeTimer); _primeTimer = null; }
       if (_longPress) {
         clearTimeout(_longPress);
         _longPress = null;
-        // Remove the hidden input
         if (_pendingInp) { _pendingInp.remove(); _pendingInp = null; }
       }
     }
