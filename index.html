@@ -1080,11 +1080,12 @@ function openBpmInput() {
   hint.classList.remove('show');
   valEl.style.display = 'none';
   var inp = document.createElement('input');
-  inp.type = 'number';
+  inp.type = 'tel';
   inp.className = 'bpm-input';
   inp.id = 'bpmInp';
   inp.value = bpm;
-  inp.min = 20; inp.max = 300;
+  inp.setAttribute('inputmode', 'numeric');
+  inp.setAttribute('pattern', '[0-9]*');
   display.insertBefore(inp, hint);
 
   var created = Date.now();
