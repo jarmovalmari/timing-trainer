@@ -25,8 +25,12 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .section-title { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:1.2px; color:var(--text-dim); margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; }
 
 /* BPM */
-.bpm-display { text-align:center; padding:4px 0 0; }
+.bpm-display { text-align:center; padding:4px 0 0; cursor:pointer; user-select:none; -webkit-user-select:none; position:relative; }
 .bpm-value { font-family:'JetBrains Mono',monospace; font-size:88px; font-weight:800; line-height:1; letter-spacing:-6px; color:var(--accent); }
+.bpm-input { font-family:'JetBrains Mono',monospace; font-size:88px; font-weight:800; line-height:1; letter-spacing:-6px; color:var(--accent); background:none; border:none; border-bottom:2px solid var(--accent); outline:none; text-align:center; width:4ch; padding:0; -moz-appearance:textfield; }
+.bpm-input::-webkit-outer-spin-button, .bpm-input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+.bpm-hint { font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--text-dim); margin-top:2px; opacity:0; transition:opacity 0.2s; pointer-events:none; }
+.bpm-hint.show { opacity:1; }
 .bpm-label { display:none; }
 .bpm-slider { width:100%; margin:12px 0 4px; -webkit-appearance:none; appearance:none; height:4px; background:var(--surface2); border-radius:2px; outline:none; }
 .bpm-slider::-webkit-slider-thumb { -webkit-appearance:none; width:22px; height:22px; background:var(--accent); border-radius:50%; cursor:pointer; box-shadow:0 0 12px rgba(184,148,61,0.3); }
@@ -300,7 +304,7 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
     </div>
   </div>
   <div class="section" id="bpmSection" style="position:relative">
-    <div class="bpm-display"><div class="bpm-value" id="bpmVal">100</div></div>
+    <div class="bpm-display" id="bpmDisplay"><div class="bpm-value" id="bpmVal">100</div><div class="bpm-hint" id="bpmHint">tap tempo · double-click to type</div></div>
     <div style="display:flex;align-items:center;gap:8px;margin:8px 0 0"><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim)">20</span><input type="range" class="bpm-slider" id="bpmSlider" min="20" max="300" value="100" style="margin:0"><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim)">300</span></div>
   </div>
   <div class="section">
@@ -693,7 +697,9 @@ function saveCurrentPattern() {
   var name = document.getElementById('patSaveName').value.trim();
   if (!name) { document.getElementById('patSaveName').focus(); return; }
   var pats = getSavedPatterns();
-  pats.unshift({ name: name, tsTop: tsTop, tsBot: tsBot, measures: measures });
+  pats.unshift({ name: name, tsTop: tsTop, tsBot: tsBot, bpm: bpm, measures: measures,
+    clickMode: clickMode, gridSub: gridSub, gridPos: gridPos.slice(),
+    clickMute: clickMute, clickMutePct: clickMutePct, clickVol: clickVol });
   setSavedPatterns(pats);
   document.getElementById('patSaveName').value = '';
   renderPatList();
@@ -705,6 +711,19 @@ function loadPattern(idx) {
   var p = pats[idx];
   tsTop = p.tsTop; tsBot = p.tsBot;
   measures = p.measures;
+  // Restore BPM
+  if (p.bpm) setBpm(p.bpm);
+  // Restore metronome settings
+  if (p.clickMode) setClickMode(p.clickMode);
+  if (p.gridSub) { gridPos = p.gridPos || [1,1,1,1]; setGridSub(p.gridSub, true); }
+  if (p.clickMute !== undefined) setClickMute(p.clickMute);
+  if (p.clickMutePct !== undefined) setClickMutePct(p.clickMutePct);
+  if (p.clickVol !== undefined) {
+    clickVol = p.clickVol;
+    document.getElementById('volS').value = clickVol;
+    document.getElementById('volV').textContent = clickVol + '%';
+    localStorage.setItem('tt_vol', clickVol);
+  }
   // Update time sig display
   var inlT = document.querySelector('.ts-inline-top');
   var inlB = document.querySelector('.ts-inline-bot');
@@ -734,8 +753,10 @@ function renderPatList() {
   pats.forEach(function(p, i) {
     var bars = p.measures ? p.measures.length : '?';
     var ts = (p.tsTop || 4) + '/' + (p.tsBot || 4);
+    var bpmStr = p.bpm ? p.bpm + ' BPM' : '';
+    var meta = [ts, bars + ' bar' + (bars !== 1 ? 's' : ''), bpmStr].filter(Boolean).join(' \u00b7 ');
     html += '<div class="pat-list-item" onclick="loadPattern('+i+')">' +
-      '<div><div class="pat-list-name">'+p.name+'</div><div class="pat-list-meta">'+ts+' \u00b7 '+bars+' bar'+(bars!==1?'s':'')+'</div></div>' +
+      '<div><div class="pat-list-name">'+p.name+'</div><div class="pat-list-meta">'+meta+'</div></div>' +
       '<div class="pat-list-del" onclick="deletePattern('+i+',event)">&times;</div></div>';
   });
   el.innerHTML = html;
@@ -1013,6 +1034,82 @@ function buildGridSched() {
    ═══════════════════════════════════════════ */
 function updateSliderFill(el) { var pct = (el.value - el.min) / (el.max - el.min) * 100; el.style.background = 'linear-gradient(to right,var(--gold) 0%,var(--gold-light) ' + pct + '%,var(--surface2) ' + pct + '%)'; }
 function setBpm(v) { bpm = v; var sl = document.getElementById('bpmSlider'); sl.value = v; document.getElementById('bpmVal').textContent = bpm; updateSliderFill(sl); }
+
+/* BPM tap tempo + direct input */
+var _tapTimes = [], _tapTimeout = null, _bpmEditing = false;
+
+function handleBpmTap(tapTime) {
+  if (_bpmEditing) return;
+  var now = tapTime || Date.now();
+  // Reset if >2s since last tap
+  if (_tapTimes.length && now - _tapTimes[_tapTimes.length - 1] > 2000) _tapTimes = [];
+  _tapTimes.push(now);
+
+  if (_tapTimes.length >= 2) {
+    // Calculate average interval from recent taps
+    var intervals = [];
+    for (var i = 1; i < _tapTimes.length; i++) intervals.push(_tapTimes[i] - _tapTimes[i - 1]);
+    // Keep last 8 taps max
+    if (intervals.length > 8) intervals = intervals.slice(-8);
+    var avg = intervals.reduce(function(a, b) { return a + b; }, 0) / intervals.length;
+    var tapBpm = Math.round(60000 / avg);
+    tapBpm = Math.max(20, Math.min(300, tapBpm));
+    setBpm(tapBpm);
+    if (isPlaying) restartMetro();
+    // Show hint
+    var hint = document.getElementById('bpmHint');
+    hint.textContent = 'tap tempo';
+    hint.classList.add('show');
+  }
+
+  // After 2s of no taps, hide hint and reset
+  clearTimeout(_tapTimeout);
+  _tapTimeout = setTimeout(function() {
+    _tapTimes = [];
+    var hint = document.getElementById('bpmHint');
+    hint.classList.remove('show');
+  }, 2000);
+}
+
+function openBpmInput() {
+  _bpmEditing = true;
+  var display = document.getElementById('bpmDisplay');
+  var valEl = document.getElementById('bpmVal');
+  var hint = document.getElementById('bpmHint');
+  hint.classList.remove('show');
+  valEl.style.display = 'none';
+  var inp = document.createElement('input');
+  inp.type = 'number';
+  inp.className = 'bpm-input';
+  inp.id = 'bpmInp';
+  inp.value = bpm;
+  inp.min = 20; inp.max = 300;
+  display.insertBefore(inp, hint);
+
+  var created = Date.now();
+  function commit() {
+    // Ignore spurious blur within 200ms of creation (from dblclick event)
+    if (Date.now() - created < 200) {
+      setTimeout(function() { inp.focus(); inp.select(); }, 0);
+      return;
+    }
+    var v = parseInt(inp.value);
+    if (v && v >= 20 && v <= 300) {
+      setBpm(v);
+      if (isPlaying) restartMetro();
+    }
+    inp.remove();
+    valEl.style.display = '';
+    _bpmEditing = false;
+  }
+  inp.addEventListener('blur', commit);
+  inp.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); inp.blur(); }
+    if (e.key === 'Escape') { inp.value = bpm; inp.blur(); }
+  });
+  inp.focus();
+  inp.select();
+}
 
 function adjTS(w, d) {
   if (w === 't') { tsTop = Math.max(1, Math.min(16, tsTop + d)); }
@@ -2818,6 +2915,42 @@ function showHelp() {
       }
     }
   });
+  /* BPM display: double-click → direct input, single clicks → tap tempo */
+  (function() {
+    var bd = document.getElementById('bpmDisplay');
+    var _clickTimer = null;
+    var _dblClicked = false;
+    bd.addEventListener('click', function(e) {
+      if (_bpmEditing) return;
+      if (e.target.id === 'bpmInp') return;
+      var ts = Date.now();
+      // If already in tap tempo mode (1+ taps), no delay needed
+      if (_tapTimes.length >= 1) {
+        handleBpmTap(ts);
+        return;
+      }
+      // First tap: delay to distinguish from double-click
+      if (_clickTimer) { clearTimeout(_clickTimer); _clickTimer = null; }
+      _clickTimer = setTimeout(function() {
+        _clickTimer = null;
+        if (!_dblClicked) handleBpmTap(ts);
+        _dblClicked = false;
+      }, 250);
+    });
+    bd.addEventListener('dblclick', function(e) {
+      if (e.target.id === 'bpmInp') return;
+      _dblClicked = true;
+      if (_clickTimer) { clearTimeout(_clickTimer); _clickTimer = null; }
+      // Cancel any tap tempo state
+      _tapTimes = [];
+      clearTimeout(_tapTimeout);
+      _bpmEditing = false;
+      var hint = document.getElementById('bpmHint');
+      hint.classList.remove('show');
+      // Small delay so click events settle before focusing input
+      setTimeout(openBpmInput, 50);
+    });
+  })();
   document.getElementById('sensS').addEventListener('input', function(e) { sens = parseInt(e.target.value); document.getElementById('sensV').textContent = sens; document.getElementById('micTh').style.left = (sens/128*100)+'%'; });
   document.getElementById('winS').addEventListener('input', function(e) { hitWin = parseInt(e.target.value); document.getElementById('winV').textContent = hitWin+'ms'; });
   function syncVol(v) { clickVol = v; document.getElementById('volS').value = v; document.getElementById('volV').textContent = v + '%'; document.getElementById('calVolS').value = v; document.getElementById('calVolV').textContent = v + '%'; localStorage.setItem('tt_vol', v); }
