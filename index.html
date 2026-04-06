@@ -1785,9 +1785,9 @@ function startMetro(skipCountoff) {
       if (idx === 0 && curSub > 0) {
         loopCount++;
         t = metroLoopStart + loopCount * metroLoopDur + tickToSec(n.tickPos);
-        // Clear hit dots at new loop start so missed beats are obvious
+        // Clear hit dots slightly before new loop beat so it doesn't compete with hlBeat in the same frame
         var _ct = t;
-        setTimeout(function() { if (isPlaying) clearMarkers(); }, Math.max(0, (_ct - audioCtx.currentTime) * 1000));
+        setTimeout(function() { if (isPlaying) clearMarkers(); }, Math.max(0, (_ct - audioCtx.currentTime) * 1000 - 8));
       }
       if (clickMode !== 'grid') {
         if (!n.rest && !(clickMute && Math.random() < clickMutePct / 100)) playClick(t, n.acc);
@@ -1869,14 +1869,14 @@ function restartMetro() {
   }, 50);
 }
 
+var _activeBeatCol = null;
 function hlBeat(mi, ni, time) {
   var delay = (time - audioCtx.currentTime) * 1000;
   setTimeout(function() {
     if (!isPlaying) return;
-    document.querySelectorAll('.beat-col').forEach(function(el) { el.classList.remove('active'); });
-    document.querySelectorAll('.beat-col[data-measure="'+mi+'"][data-note="'+ni+'"]').forEach(function(el) {
-      el.classList.add('active');
-    });
+    if (_activeBeatCol) { _activeBeatCol.classList.remove('active'); _activeBeatCol = null; }
+    var el = document.querySelector('.beat-col[data-measure="'+mi+'"][data-note="'+ni+'"]');
+    if (el) { el.classList.add('active'); _activeBeatCol = el; }
   }, Math.max(0, delay));
 }
 
@@ -1897,7 +1897,7 @@ function stopMetro() {
   // Remove count-off overlay if still showing
   var cOv = document.querySelector('.count-ov');
   if (cOv) cOv.parentNode.removeChild(cOv);
-  document.querySelectorAll('.beat-col').forEach(function(el) { el.classList.remove('active'); });
+  if (_activeBeatCol) { _activeBeatCol.classList.remove('active'); _activeBeatCol = null; }
   document.getElementById('btnStop').style.display = 'none';
   document.getElementById('btnGo').style.display = '';
   var trHint2 = document.getElementById('trHint'); if (trHint2) trHint2.style.visibility = '';
