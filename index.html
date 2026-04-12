@@ -275,6 +275,10 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .grid-sub-pills { display:flex; gap:4px; flex:1; }
 .grid-pill { font-size:12px; padding:3px 8px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text-dim); cursor:pointer; font-family:'JetBrains Mono',monospace; text-align:center; }
 .grid-pill.active { background:var(--accent); color:var(--bg); border-color:var(--accent); }
+.snd-tiles { display:flex; gap:6px; margin-bottom:10px; }
+.snd-tile { flex:1; padding:10px 0; background:var(--surface2); border:1px solid var(--border); border-radius:8px; color:var(--text-dim); cursor:pointer; font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:600; text-align:center; transition:background 0.15s, border-color 0.15s; user-select:none; -webkit-user-select:none; }
+.snd-tile.active { background:var(--accent); color:var(--bg); border-color:var(--accent); }
+.snd-tile:active { opacity:0.7; }
 .ts-inline { font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--text); display:flex; flex-direction:column; align-items:center; justify-content:flex-end; line-height:1; cursor:pointer; width:24px; min-width:24px; padding:0 0 20px; user-select:none; align-self:flex-start; padding-top:22px; }
 .ts-inline-top, .ts-inline-bot { font-size:18px; }
 .ts-popover { display:none; position:fixed; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px; z-index:75; box-shadow:0 4px 24px rgba(0,0,0,0.5); white-space:nowrap; }
@@ -339,12 +343,12 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 <div class="settings-popover" id="panelMetro">
   <div class="settings-popover-handle"></div>
   <div class="settings-popover-title">Metronome <span class="settings-popover-close" onclick="closeSettings()">&times;</span></div>
-  <div class="section-title" style="margin-bottom:8px">Click Mode</div>
-  <select id="clickModeSel" class="click-sel" onchange="setClickMode(this.value)" style="margin-bottom:10px">
-    <option value="pattern">Pattern</option>
-    <option value="grid">Grid</option>
-    <option value="both">Both</option>
-  </select>
+  <div class="section-title" style="margin-bottom:8px">Sound</div>
+  <div class="snd-tiles">
+    <div class="snd-tile active" id="sndPattern" onclick="toggleSnd('pattern')">Pattern</div>
+    <div class="snd-tile" id="sndGrid" onclick="toggleSnd('grid')">Grid</div>
+    <div class="snd-tile" id="sndLoop" onclick="toggleSnd('loop')">Loop</div>
+  </div>
   <div id="gridCfg" style="display:none; margin-bottom:10px">
     <div class="grid-sub-pills" id="gridSubPills" style="margin-bottom:6px">
       <div class="grid-pill" id="gp_q" onclick="setGridSub('q')">&#9833;</div>
@@ -353,6 +357,11 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
       <div class="grid-pill" id="gp_8t" onclick="setGridSub('8t')">&#9834;&#179;</div>
     </div>
     <div id="gridPosToggles" class="grid-pos-row"></div>
+  </div>
+  <div id="loopCfg" style="display:none; margin-bottom:10px">
+    <select id="loopSel" class="click-sel" onchange="setLoopType(this.value)">
+      <option value="none">None</option>
+    </select>
   </div>
   <div id="muteRow">
     <div style="display:flex; align-items:center; gap:6px">
@@ -363,10 +372,6 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
     <input type="range" id="clickMuteRng" min="5" max="95" value="30" step="5"
            class="sl-ctrl" oninput="setClickMutePct(this.value)" style="width:100%; margin-top:4px" disabled>
   </div>
-  <div class="section-title" style="margin-top:14px; margin-bottom:8px">Percussion Loop</div>
-  <select id="loopSel" class="click-sel" onchange="setLoopType(this.value)">
-    <option value="none">None</option>
-  </select>
 </div>
 
 <div class="settings-popover" id="panelMic">
@@ -658,7 +663,7 @@ var schedT = null, nextNote = 0, curSub = 0, sBeats = [], countOffTids = [], inC
 var LA = 100, SI = 20, clickBlank = [], BLANK_AFTER = 50;
 var sessH = [], sessStart = 0, sessBpm = 0;
 // Click grid state
-var clickMode = 'pattern'; // 'pattern' | 'grid' | 'both'
+var clickPattern = true, clickGrid = false;
 var gridSub = '16';        // 'q' | '8' | '16' | '8t'
 var gridPos = [1,1,1,1];   // which positions are ON (length varies by subdivision)
 // Live grid schedule (globals for hot-swap during playback)
@@ -719,9 +724,9 @@ function saveCurrentPattern() {
   if (!name) { document.getElementById('patSaveName').focus(); return; }
   var pats = getSavedPatterns();
   pats.unshift({ name: name, tsTop: tsTop, tsBot: tsBot, bpm: bpm, measures: measures,
-    clickMode: clickMode, gridSub: gridSub, gridPos: gridPos.slice(),
+    clickPattern: clickPattern, clickGrid: clickGrid, gridSub: gridSub, gridPos: gridPos.slice(),
     clickMute: clickMute, clickMutePct: clickMutePct, clickVol: clickVol,
-    loopType: loopType });
+    loopEnabled: loopEnabled, loopType: loopType });
   setSavedPatterns(pats);
   document.getElementById('patSaveName').value = '';
   renderPatList();
@@ -736,7 +741,11 @@ function loadPattern(idx) {
   // Restore BPM
   if (p.bpm) setBpm(p.bpm);
   // Restore metronome settings
-  if (p.clickMode) setClickMode(p.clickMode);
+  // Restore sound tile state (backward compat with old clickMode string)
+  if (p.clickPattern !== undefined) { clickPattern = p.clickPattern; clickGrid = !!p.clickGrid; }
+  else if (p.clickMode) { clickPattern = (p.clickMode === 'pattern' || p.clickMode === 'both'); clickGrid = (p.clickMode === 'grid' || p.clickMode === 'both'); }
+  if (p.loopEnabled !== undefined) loopEnabled = p.loopEnabled;
+  syncSndTiles();
   if (p.gridSub) { gridPos = p.gridPos || [1,1,1,1]; setGridSub(p.gridSub, true); }
   if (p.clickMute !== undefined) setClickMute(p.clickMute);
   if (p.clickMutePct !== undefined) setClickMutePct(p.clickMutePct);
@@ -1166,7 +1175,6 @@ function playPercEvent(t, sound, vel) {
 
 function setLoopType(key) {
   loopType = key;
-  loopEnabled = key !== 'none';
   document.getElementById('loopSel').value = key;
   localStorage.setItem('tt_loop', key);
   if (isPlaying) rebuildLoopLive();
@@ -1184,12 +1192,36 @@ function rebuildLoopLive() {
    ═══════════════════════════════════════════ */
 var gridSubCounts = { q: 1, '8': 2, '16': 4, '8t': 3 };
 
+function toggleSnd(which) {
+  if (which === 'pattern') clickPattern = !clickPattern;
+  else if (which === 'grid') clickGrid = !clickGrid;
+  else if (which === 'loop') loopEnabled = !loopEnabled;
+  // Ensure at least one sound source is on
+  if (!clickPattern && !clickGrid && !loopEnabled) {
+    if (which === 'pattern') clickPattern = true;
+    else if (which === 'grid') clickGrid = true;
+    else loopEnabled = true;
+  }
+  syncSndTiles();
+  localStorage.setItem('tt_sndPat', clickPattern ? '1' : '0');
+  localStorage.setItem('tt_sndGrid', clickGrid ? '1' : '0');
+  localStorage.setItem('tt_sndLoop', loopEnabled ? '1' : '0');
+  if (clickGrid) renderGridPos();
+  if (isPlaying) { rebuildGridLive(); rebuildLoopLive(); }
+}
+function syncSndTiles() {
+  document.getElementById('sndPattern').classList.toggle('active', clickPattern);
+  document.getElementById('sndGrid').classList.toggle('active', clickGrid);
+  document.getElementById('sndLoop').classList.toggle('active', loopEnabled);
+  document.getElementById('gridCfg').style.display = clickGrid ? '' : 'none';
+  document.getElementById('loopCfg').style.display = loopEnabled ? '' : 'none';
+}
+// Compat wrapper for loadPattern which may store old clickMode string
 function setClickMode(mode) {
-  clickMode = mode;
-  document.getElementById('clickModeSel').value = mode;
-  document.getElementById('gridCfg').style.display = (mode === 'pattern') ? 'none' : '';
-  localStorage.setItem('tt_cm', mode);
-  if (mode !== 'pattern') renderGridPos();
+  clickPattern = (mode === 'pattern' || mode === 'both');
+  clickGrid = (mode === 'grid' || mode === 'both');
+  syncSndTiles();
+  if (clickGrid) renderGridPos();
   if (isPlaying) rebuildGridLive();
 }
 
@@ -2259,7 +2291,7 @@ function startMetro(skipCountoff) {
     loopStart = audioCtx.currentTime + 0.05;
     metroLoopStart = loopStart;
     nextNote = loopStart;
-    gSched = (clickMode !== 'pattern') ? buildGridSched() : [];
+    gSched = (clickGrid) ? buildGridSched() : [];
     curGS = 0; nextGN = loopStart; gLoopCount = 0;
     lSched = loopEnabled ? buildLoopSched(loopType) : [];
     curLS = 0; nextLN = loopStart; lLoopCount = 0;
@@ -2303,7 +2335,7 @@ function startMetro(skipCountoff) {
     loopStart = countStart + countOffDur;
     metroLoopStart = loopStart;
     nextNote = loopStart;
-    gSched = (clickMode !== 'pattern') ? buildGridSched() : [];
+    gSched = (clickGrid) ? buildGridSched() : [];
     curGS = 0; nextGN = loopStart; gLoopCount = 0;
     lSched = loopEnabled ? buildLoopSched(loopType) : [];
     curLS = 0; nextLN = loopStart; lLoopCount = 0;
@@ -2333,7 +2365,7 @@ function startMetro(skipCountoff) {
         var _ct = t;
         setTimeout(function() { if (isPlaying) clearMarkers(); }, Math.max(0, (_ct - audioCtx.currentTime) * 1000 - 8));
       }
-      if (clickMode !== 'grid') {
+      if (clickPattern) {
         if (!n.rest && !(clickMute && Math.random() < clickMutePct / 100)) playClick(t, n.acc);
       }
       sBeats.push({time:t, mi:n.mi, ni:n.ni, rest:n.rest, dur:n.dur});
@@ -2396,7 +2428,7 @@ function startMetro(skipCountoff) {
 }
 
 function rebuildGridLive() {
-  gSched = (clickMode !== 'pattern') ? buildGridSched() : [];
+  gSched = (clickGrid) ? buildGridSched() : [];
   if (isPlaying && audioCtx && gSched.length > 0) {
     // Find where we are in the current loop to avoid double/skipped clicks
     var elapsed = audioCtx.currentTime - metroLoopStart;
@@ -3268,9 +3300,19 @@ function showHelp() {
   loadLat();
   updateAudioIcon();
   detectAudioDevice();
-  // Restore click grid settings
-  var sCM = localStorage.getItem('tt_cm');
-  if (sCM && (sCM === 'pattern' || sCM === 'grid' || sCM === 'both')) clickMode = sCM;
+  // Restore sound tile settings
+  var sPat = localStorage.getItem('tt_sndPat');
+  var sGrid = localStorage.getItem('tt_sndGrid');
+  var sLoop = localStorage.getItem('tt_sndLoop');
+  if (sPat !== null) clickPattern = sPat === '1';
+  if (sGrid !== null) clickGrid = sGrid === '1';
+  if (sLoop !== null) loopEnabled = sLoop === '1';
+  // Backward compat: migrate old clickMode
+  if (sPat === null && sGrid === null) {
+    var sCM = localStorage.getItem('tt_cm');
+    if (sCM === 'grid') { clickPattern = false; clickGrid = true; }
+    else if (sCM === 'both') { clickPattern = true; clickGrid = true; }
+  }
   var sGS = localStorage.getItem('tt_gs');
   if (sGS && gridSubCounts[sGS]) gridSub = sGS;
   try { var sGP = JSON.parse(localStorage.getItem('tt_gp')); if (sGP && sGP.length === gridSubCounts[gridSub]) gridPos = sGP; } catch(e) {}
@@ -3278,20 +3320,21 @@ function showHelp() {
   if (sCMU === '1') clickMute = true;
   var sCMP = localStorage.getItem('tt_cmp');
   if (sCMP !== null) clickMutePct = parseInt(sCMP) || 30;
-  setClickMode(clickMode);
+  syncSndTiles();
+  if (clickGrid) renderGridPos();
   setClickMute(clickMute);
   setClickMutePct(clickMutePct);
   setGridSub(gridSub, true);
   // Populate loop selector
-  var loopSel = document.getElementById('loopSel');
+  var loopSelEl = document.getElementById('loopSel');
   Object.keys(PERC_LOOPS).forEach(function(k) {
     var opt = document.createElement('option');
     opt.value = k; opt.textContent = PERC_LOOPS[k].name;
-    loopSel.appendChild(opt);
+    loopSelEl.appendChild(opt);
   });
-  var sLoop = localStorage.getItem('tt_loop');
-  if (sLoop && PERC_LOOPS[sLoop]) { loopType = sLoop; loopEnabled = true; }
-  loopSel.value = loopType;
+  var sLoopType = localStorage.getItem('tt_loop');
+  if (sLoopType && PERC_LOOPS[sLoopType]) loopType = sLoopType;
+  loopSelEl.value = loopType;
   buildPat();
   // Re-pack rows on resize so pattern never overflows
   var _resizeTimer = null;
