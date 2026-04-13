@@ -402,8 +402,8 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
   <div class="settings-popover-handle"></div>
   <div class="settings-popover-title">Audio <span class="settings-popover-close" onclick="closeSettings()">&times;</span></div>
   <div class="mode-toggle" style="margin-bottom:12px">
-    <div class="mode-btn active" id="modeW" onclick="setMode('w')">Wired</div>
-    <div class="mode-btn" id="modeS" onclick="setMode('s')">Speaker</div>
+    <div class="mode-btn" id="modeW" onclick="setMode('w')">Wired</div>
+    <div class="mode-btn active" id="modeS" onclick="setMode('s')">Speaker</div>
     <div class="mode-btn" id="modeBT" onclick="setMode('bt')">Bluetooth</div>
   </div>
   <div class="sl-row">
@@ -432,7 +432,7 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 
 <div class="transport">
   <div class="transport-actions">
-    <div class="action-btn" id="btnAudio" onclick="openSettingsPanel('audio')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 010 7.07"/></svg></div>
+    <div class="action-btn" id="btnAudio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 010 7.07"/></svg></div>
     <div class="action-btn" id="btnMic" onclick="openSettingsPanel('mic')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></div>
     <div class="go-stop-wrap">
       <div class="tr-btn btn-go" id="btnGo" onclick="handleGo()"><div class="btn-go-inner">GO</div></div>
@@ -655,7 +655,7 @@ function svgN(type, w, h, fillOverride, beamed) {
    ═══════════════════════════════════════════ */
 var audioCtx = null, micStream = null, analyser = null, micData = null, masterGain = null;
 var isPlaying = false, isInit = false, wakeLock = null, pendingGo = false;
-var bpm = 100, tsTop = 4, tsBot = 4, aMode = 'w', latMs = 0, clickVol = 80;
+var bpm = 100, tsTop = 4, tsBot = 4, aMode = 's', latMs = 0, clickVol = 80;
 var measures = []; // array of arrays: [[{t,dur},...],...]
 var sens = 12, hitWin = 120, MR = 35, RA = 0.3, ML = 150; // min retrigger ms, re-arm fraction, max lockout ms
 var lastHit = 0, hitArmed = true, micPoll = null, micMeterI = null;
@@ -817,7 +817,6 @@ async function ensureInit() {
     isInit = true;
     updateMicStatus();
     await populateMicList();
-    detectAudioDevice(); // re-detect with labels now available after permission grant
     return true;
   } catch(e) { alert('Mic access required: ' + e.message); return false; }
 }
@@ -1089,22 +1088,24 @@ var PERC_SOUNDS = {
 // Loop pattern definitions: arrays of {tick, sound, vel}
 // tick is in the 24-ppq system (quarter=24, 8th=12, 16th=6)
 // Each loop defines bars (1 or 2) and events per bar
+var LOOP_BAR_TICKS = 96; // 24 ticks/beat × 4 beats — loops always use 4/4 internally
 var PERC_LOOPS = {
-  'son-clave': { name: 'Son Clave', bars: 2, events: [
-    {tick:0, s:'clave', v:1}, {tick:18, s:'clave', v:0.8},
-    {tick:36, s:'clave', v:1},
-    // bar 2
-    {tick:96+12, s:'clave', v:0.9}, {tick:96+36, s:'clave', v:0.8}
+  'son-clave': { name: 'Son Clave 3-2', bars: 2, events: [
+    // Bar 1 (3 side): beat 1, and-of-2, beat 4
+    {tick:0, s:'clave', v:1}, {tick:36, s:'clave', v:0.9}, {tick:72, s:'clave', v:1},
+    // Bar 2 (2 side): beat 2, beat 3
+    {tick:120, s:'clave', v:0.9}, {tick:144, s:'clave', v:0.9}
   ]},
-  'rumba-clave': { name: 'Rumba Clave', bars: 2, events: [
-    {tick:0, s:'clave', v:1}, {tick:18, s:'clave', v:0.8},
-    {tick:42, s:'clave', v:1},
-    {tick:96+12, s:'clave', v:0.9}, {tick:96+36, s:'clave', v:0.8}
+  'rumba-clave': { name: 'Rumba Clave 3-2', bars: 2, events: [
+    // Bar 1 (3 side): beat 1, and-of-2, and-of-4
+    {tick:0, s:'clave', v:1}, {tick:36, s:'clave', v:0.9}, {tick:84, s:'clave', v:1},
+    // Bar 2 (2 side): beat 2, beat 3
+    {tick:120, s:'clave', v:0.9}, {tick:144, s:'clave', v:0.9}
   ]},
   'bossa': { name: 'Bossa Nova', bars: 2, events: [
-    // Cross-stick pattern
-    {tick:0, s:'rim', v:0.9}, {tick:18, s:'rim', v:0.7}, {tick:36, s:'rim', v:0.8},
-    {tick:96+12, s:'rim', v:0.7}, {tick:96+36, s:'rim', v:0.8},
+    // Cross-stick: son clave rhythm
+    {tick:0, s:'rim', v:0.9}, {tick:36, s:'rim', v:0.7}, {tick:72, s:'rim', v:0.8},
+    {tick:120, s:'rim', v:0.7}, {tick:144, s:'rim', v:0.8},
     // Shaker 16ths
     {tick:0, s:'shaker', v:0.6}, {tick:6, s:'shaker', v:0.3}, {tick:12, s:'shaker', v:0.5}, {tick:18, s:'shaker', v:0.3},
     {tick:24, s:'shaker', v:0.6}, {tick:30, s:'shaker', v:0.3}, {tick:36, s:'shaker', v:0.5}, {tick:42, s:'shaker', v:0.3},
@@ -1136,10 +1137,10 @@ var PERC_LOOPS = {
     {tick:0, s:'hat', v:0.7}, {tick:12, s:'hat', v:0.4}, {tick:24, s:'hat', v:0.6}, {tick:36, s:'hat', v:0.4},
     {tick:48, s:'hat', v:0.7}, {tick:60, s:'hat', v:0.4}, {tick:72, s:'ohat', v:0.7}, {tick:84, s:'hat', v:0.4},
     // Bar 2
-    {tick:96, s:'kick', v:1}, {tick:96+42, s:'kick', v:0.7}, {tick:96+48, s:'kick', v:0.9},
-    {tick:96+24, s:'snare', v:1}, {tick:96+72, s:'snare', v:1},
-    {tick:96, s:'hat', v:0.7}, {tick:96+12, s:'hat', v:0.4}, {tick:96+24, s:'hat', v:0.6}, {tick:96+36, s:'hat', v:0.4},
-    {tick:96+48, s:'hat', v:0.7}, {tick:96+60, s:'hat', v:0.4}, {tick:96+72, s:'hat', v:0.7}, {tick:96+84, s:'hat', v:0.4}
+    {tick:96, s:'kick', v:1}, {tick:138, s:'kick', v:0.7}, {tick:144, s:'kick', v:0.9},
+    {tick:120, s:'snare', v:1}, {tick:168, s:'snare', v:1},
+    {tick:96, s:'hat', v:0.7}, {tick:108, s:'hat', v:0.4}, {tick:120, s:'hat', v:0.6}, {tick:132, s:'hat', v:0.4},
+    {tick:144, s:'hat', v:0.7}, {tick:156, s:'hat', v:0.4}, {tick:168, s:'hat', v:0.7}, {tick:180, s:'hat', v:0.4}
   ]},
   'shaker-16': { name: 'Shaker 16ths', bars: 1, events: [
     {tick:0, s:'shaker', v:0.8}, {tick:6, s:'shaker', v:0.3}, {tick:12, s:'shaker', v:0.5}, {tick:18, s:'shaker', v:0.3},
@@ -1148,19 +1149,18 @@ var PERC_LOOPS = {
     {tick:72, s:'shaker', v:0.7}, {tick:78, s:'shaker', v:0.3}, {tick:84, s:'shaker', v:0.5}, {tick:90, s:'shaker', v:0.3}
   ]},
   'tumbao': { name: 'Tumbao', bars: 2, events: [
-    // Conga-style pattern (using toms)
-    {tick:0, s:'tomL', v:0.8}, {tick:18, s:'tomH', v:0.6}, {tick:24, s:'tomL', v:0.7},
-    {tick:48, s:'tomH', v:0.6}, {tick:60, s:'tomL', v:0.8}, {tick:72, s:'tomH', v:0.6},
-    {tick:96, s:'tomL', v:0.8}, {tick:96+18, s:'tomH', v:0.6}, {tick:96+24, s:'tomL', v:0.7},
-    {tick:96+48, s:'tomH', v:0.6}, {tick:96+60, s:'tomL', v:0.8}, {tick:96+72, s:'tomH', v:0.7}
+    // Conga-style 2-bar pattern (tomH=slap, tomL=open tone)
+    // Bar 1: slap and-of-2, open beat 4, open and-of-4
+    {tick:36, s:'tomH', v:0.8}, {tick:72, s:'tomL', v:0.9}, {tick:84, s:'tomL', v:0.7},
+    // Bar 2: slap and-of-2, open beat 3, open and-of-4
+    {tick:132, s:'tomH', v:0.8}, {tick:144, s:'tomL', v:0.9}, {tick:180, s:'tomL', v:0.7}
   ]}
 };
 
 function buildLoopSched(loopKey) {
   var loop = PERC_LOOPS[loopKey];
   if (!loop) return [];
-  var cap = measCap();
-  var loopTicks = cap * loop.bars;
+  var loopTicks = LOOP_BAR_TICKS * loop.bars;
   // Sort events by tick
   return loop.events.slice().sort(function(a,b) { return a.tick - b.tick; }).map(function(e) {
     return {tickPos: e.tick % loopTicks, sound: e.s, vel: e.v};
@@ -2269,11 +2269,20 @@ function startMetro(skipCountoff) {
     audioCtx.resume().then(function() { startMetro(skipCountoff); });
     return;
   }
+  // Guard: after resume(), clock may not be ticking yet (common on iOS).
+  // Wait until currentTime advances before scheduling anything.
+  if (audioCtx && audioCtx.currentTime < 0.001) {
+    setTimeout(function() { startMetro(skipCountoff); }, 30);
+    return;
+  }
   isPlaying = true;
   if (!skipCountoff) { sessH = []; sessStart = Date.now(); sessBpm = bpm; clearMarkers(); clearResults(); }
   sBeats = []; curSub = 0; lastHit = 0; hitArmed = true;
   if (masterGain) { masterGain.gain.cancelScheduledValues(0); masterGain.gain.setValueAtTime(1, audioCtx.currentTime); }
-  if ('wakeLock' in navigator) navigator.wakeLock.request('screen').then(function(l) { wakeLock = l; }).catch(function() {});
+  if ('wakeLock' in navigator) navigator.wakeLock.request('screen').then(function(l) {
+    wakeLock = l;
+    l.addEventListener('release', function() { wakeLock = null; });
+  }).catch(function() {});
   var sched = buildSched();
   if (!sched.length) { isPlaying = false; return; }
   var totalTicks = measures.length * measCap();
@@ -2403,7 +2412,7 @@ function startMetro(skipCountoff) {
     // Percussion loop scheduling
     if (lSched.length > 0) {
       var loop = PERC_LOOPS[loopType];
-      var lLoopTicks = measCap() * (loop ? loop.bars : 1);
+      var lLoopTicks = LOOP_BAR_TICKS * (loop ? loop.bars : 1);
       var lLoopDurSec = tickToSec(lLoopTicks);
       while (nextLN < audioCtx.currentTime + LA / 1000) {
         var li = curLS % lSched.length;
@@ -2642,6 +2651,7 @@ function clearMarkers() {
 function setMode(m) {
   var prevMode = aMode;
   aMode = m;
+  localStorage.setItem('tt_aMode', m);
   document.getElementById('modeW').className = 'mode-btn' + (m === 'w' ? ' active' : '');
   document.getElementById('modeS').className = 'mode-btn' + (m === 's' ? ' active' : '');
   document.getElementById('modeBT').className = 'mode-btn' + (m === 'bt' ? ' active' : '');
@@ -2654,6 +2664,11 @@ function setMode(m) {
     var devId = sel && sel.value ? sel.value : undefined;
     connectMic(devId).then(function() { updateMicStatus(); }).catch(function() {});
   }
+}
+
+function cycleMode() {
+  var next = aMode === 'w' ? 's' : aMode === 's' ? 'bt' : 'w';
+  setMode(next);
 }
 
 function latKey() { return aMode === 'bt' ? 'tt_bt' : aMode === 's' ? 'tt_s' : 'tt_w'; }
@@ -3119,99 +3134,6 @@ function updateAudioIcon() {
   btn.innerHTML = svgs[aMode] || svgs.s;
 }
 
-var _prevDeviceIds = new Set();
-var _btWords = ['airpod', 'bluetooth', 'wireless', 'buds', 'beats', 'galaxy buds', 'jabra', 'sony wf', 'bose', 'jbl', 'marshall', 'sennheiser momentum', 'wh-1000', 'wf-1000', 'qc35', 'qc45', 'nc700'];
-var _wiredWords = ['headphone', 'headset', 'wired', 'usb', 'external', 'earpod'];
-
-function classifyLabel(label) {
-  var l = label.toLowerCase();
-  for (var b = 0; b < _btWords.length; b++) {
-    if (l.indexOf(_btWords[b]) !== -1) return 'bt';
-  }
-  for (var w = 0; w < _wiredWords.length; w++) {
-    if (l.indexOf(_wiredWords[w]) !== -1) return 'w';
-  }
-  return null;
-}
-
-function detectAudioDevice() {
-  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
-  navigator.mediaDevices.enumerateDevices().then(function(devices) {
-    var relevant = devices.filter(function(d) {
-      return (d.kind === 'audiooutput' || d.kind === 'audioinput') &&
-             d.deviceId !== 'default' && d.deviceId !== 'communications';
-    });
-    var currentIds = new Set(relevant.map(function(d) { return d.deviceId; }));
-
-    // First call: store baseline, classify only if we have no saved mode
-    if (_prevDeviceIds.size === 0) {
-      _prevDeviceIds = currentIds;
-      // On first load, only auto-detect if no saved latency for current mode
-      // (i.e. user hasn't manually chosen a mode before)
-      var savedLat = localStorage.getItem('tt_lat_' + aMode);
-      if (savedLat !== null) return; // user has a saved mode, respect it
-      // No saved preference — do a full scan for initial detection
-      var detected = classifyAll(relevant);
-      if (detected && detected !== aMode) setMode(detected);
-      return;
-    }
-
-    // Delta detection: only classify newly added devices
-    var added = relevant.filter(function(d) { return !_prevDeviceIds.has(d.deviceId); });
-    var removed = [];
-    _prevDeviceIds.forEach(function(id) { if (!currentIds.has(id)) removed.push(id); });
-    _prevDeviceIds = currentIds;
-
-    if (added.length > 0) {
-      // Classify only the new device(s)
-      var detected = null;
-      for (var i = 0; i < added.length; i++) {
-        var c = classifyLabel(added[i].label);
-        if (c) { detected = c; break; }
-      }
-      // Fallback: new unlabeled output likely wired (iOS Lightning adapter)
-      if (!detected) {
-        var newOutputs = added.filter(function(d) { return d.kind === 'audiooutput'; });
-        if (newOutputs.length > 0) detected = 'w';
-      }
-      if (detected && detected !== aMode) setMode(detected);
-    } else if (removed.length > 0 && added.length === 0) {
-      // Device removed — fall back to speaker if nothing else is connected
-      var remainingOutputs = relevant.filter(function(d) {
-        return d.kind === 'audiooutput' && d.label !== '';
-      });
-      // Check if any remaining non-built-in output exists
-      var hasExternal = false;
-      for (var i = 0; i < remainingOutputs.length; i++) {
-        var c = classifyLabel(remainingOutputs[i].label);
-        if (c) { hasExternal = true; if (c !== aMode) setMode(c); break; }
-      }
-      if (!hasExternal && aMode !== 's') setMode('s');
-    }
-  }).catch(function() {});
-}
-
-function classifyAll(devices) {
-  // Full scan fallback — used only on first load with no saved preference
-  var labels = devices.map(function(d) { return d.label.toLowerCase(); });
-  for (var i = 0; i < labels.length; i++) {
-    for (var b = 0; b < _btWords.length; b++) {
-      if (labels[i].indexOf(_btWords[b]) !== -1) return 'bt';
-    }
-  }
-  for (var i = 0; i < labels.length; i++) {
-    for (var w = 0; w < _wiredWords.length; w++) {
-      if (labels[i].indexOf(_wiredWords[w]) !== -1) return 'w';
-    }
-  }
-  var outputs = devices.filter(function(d) { return d.kind === 'audiooutput'; });
-  if (outputs.length > 0 && !outputs.some(function(d) { return d.label !== ''; })) return 'w';
-  return null;
-}
-
-if (navigator.mediaDevices) {
-  navigator.mediaDevices.addEventListener('devicechange', detectAudioDevice);
-}
 
 /* ═══════════════════════════════════════════
    SETTINGS MENU
@@ -3297,9 +3219,33 @@ function showHelp() {
   document.getElementById('volV').textContent = clickVol + '%';
   document.getElementById('calVolS').value = clickVol;
   document.getElementById('calVolV').textContent = clickVol + '%';
+  // Restore saved audio mode (default: speaker)
+  var savedMode = localStorage.getItem('tt_aMode');
+  if (savedMode && (savedMode === 'w' || savedMode === 's' || savedMode === 'bt')) {
+    aMode = savedMode;
+  } else {
+    aMode = 's';
+  }
   loadLat();
   updateAudioIcon();
-  detectAudioDevice();
+  // Sync mode buttons in audio panel
+  document.getElementById('modeW').className = 'mode-btn' + (aMode === 'w' ? ' active' : '');
+  document.getElementById('modeS').className = 'mode-btn' + (aMode === 's' ? ' active' : '');
+  document.getElementById('modeBT').className = 'mode-btn' + (aMode === 'bt' ? ' active' : '');
+  // Audio button: tap = cycle mode, long press = open audio settings
+  (function() {
+    var ab = document.getElementById('btnAudio'), _at = null, _aDidLong = false;
+    ab.addEventListener('pointerdown', function(e) {
+      _aDidLong = false;
+      _at = setTimeout(function() { _at = null; _aDidLong = true; openSettingsPanel('audio'); }, 400);
+    });
+    ab.addEventListener('pointerup', function() {
+      if (_at) { clearTimeout(_at); _at = null; }
+      if (!_aDidLong) cycleMode();
+    });
+    ab.addEventListener('pointercancel', function() { if (_at) { clearTimeout(_at); _at = null; } });
+    ab.addEventListener('contextmenu', function(e) { e.preventDefault(); });
+  })();
   // Restore sound tile settings
   var sPat = localStorage.getItem('tt_sndPat');
   var sGrid = localStorage.getItem('tt_sndGrid');
@@ -3447,7 +3393,10 @@ function showHelp() {
         startHitDet();
       }
       if (isPlaying && !wakeLock && 'wakeLock' in navigator) {
-        navigator.wakeLock.request('screen').then(function(l) { wakeLock = l; }).catch(function() {});
+        navigator.wakeLock.request('screen').then(function(l) {
+          wakeLock = l;
+          l.addEventListener('release', function() { wakeLock = null; });
+        }).catch(function() {});
       }
       updateMicStatus();
     }
