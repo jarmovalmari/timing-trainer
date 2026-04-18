@@ -674,6 +674,7 @@ var clickMute = false, clickMutePct = 30;
 var loopEnabled = false;  // whether loop plays
 var loopType = 'none';    // 'none' | loop key from PERC_LOOPS
 var lSched = [], curLS = 0, nextLN = 0, lLoopCount = 0;
+var loopCount = 0; // pattern loop counter (file-scope so rebuildLoopLive/rebuildGridLive can read it)
 // Note picker state
 var npMi = -1, npNi = -1;
 // Calibration
@@ -858,7 +859,7 @@ async function connectMic(deviceId) {
   hitArmed = true;
 }
 
-async function populateMicList() {
+async function populateMicList(skipConnect) {
   try {
     var devices = await navigator.mediaDevices.enumerateDevices();
     var sel = document.getElementById('micSel');
@@ -872,8 +873,8 @@ async function populateMicList() {
       if (d.deviceId === saved) opt.selected = true;
       sel.appendChild(opt);
     });
-    // If we have a saved device, switch to it on first init
-    if (saved && sel.value === saved) {
+    // If we have a saved device, switch to it on first init (skipped by switchMic which just connected)
+    if (!skipConnect && saved && sel.value === saved) {
       await connectMic(saved);
     }
   } catch(e) { /* enumeration not supported, keep default */ }
@@ -886,8 +887,8 @@ async function switchMic() {
   if (!isInit) return; // will be applied on next ensureInit
   try {
     await connectMic(deviceId || undefined);
-    // Re-populate in case labels changed after permission grant
-    await populateMicList();
+    // Re-populate in case labels changed after permission grant (skip redundant connectMic)
+    await populateMicList(true);
     updateMicStatus();
   } catch(e) {
     alert('Could not switch mic: ' + e.message);
@@ -1148,12 +1149,10 @@ var PERC_LOOPS = {
     {tick:48, s:'shaker', v:0.7}, {tick:54, s:'shaker', v:0.3}, {tick:60, s:'shaker', v:0.5}, {tick:66, s:'shaker', v:0.3},
     {tick:72, s:'shaker', v:0.7}, {tick:78, s:'shaker', v:0.3}, {tick:84, s:'shaker', v:0.5}, {tick:90, s:'shaker', v:0.3}
   ]},
-  'tumbao': { name: 'Tumbao', bars: 2, events: [
-    // Conga-style 2-bar pattern (tomH=slap, tomL=open tone)
-    // Bar 1: slap and-of-2, open beat 4, open and-of-4
-    {tick:36, s:'tomH', v:0.8}, {tick:72, s:'tomL', v:0.9}, {tick:84, s:'tomL', v:0.7},
-    // Bar 2: slap and-of-2, open beat 3, open and-of-4
-    {tick:132, s:'tomH', v:0.8}, {tick:144, s:'tomL', v:0.9}, {tick:180, s:'tomL', v:0.7}
+  'tumbao': { name: 'Tumbao', bars: 1, events: [
+    // Standard conga tumbao (tomH=slap, tomL=open tone)
+    // Slap on beat 3, open tones on "a of 3" and "e of 4"
+    {tick:48, s:'tomH', v:1}, {tick:66, s:'tomL', v:0.9}, {tick:78, s:'tomL', v:0.85}
   ]}
 };
 
@@ -1171,6 +1170,7 @@ function playPercEvent(t, sound, vel) {
   if (!audioCtx || !PERC_SOUNDS[sound]) return;
   var v = vel * (clickVol / 100);
   PERC_SOUNDS[sound](t, v);
+  if (aMode === 's') clickBlank.push(t);
 }
 
 function setLoopType(key) {
@@ -1183,8 +1183,31 @@ function setLoopType(key) {
 function rebuildLoopLive() {
   if (!loopEnabled || loopType === 'none') { lSched = []; return; }
   lSched = buildLoopSched(loopType);
-  curLS = 0; lLoopCount = loopCount;
-  nextLN = metroLoopStart + lLoopCount * metroLoopDur;
+  if (isPlaying && audioCtx && lSched.length > 0) {
+    var loop = PERC_LOOPS[loopType];
+    var lLoopTicks = LOOP_BAR_TICKS * (loop ? loop.bars : 1);
+    var lLoopDurSec = tickToSec(lLoopTicks);
+    // During count-off metroLoopStart is in the future — start fresh at loop start
+    if (inCountOff) {
+      curLS = 0; lLoopCount = 0;
+      nextLN = metroLoopStart + tickToSec(lSched[0].tickPos);
+      return;
+    }
+    var elapsed = audioCtx.currentTime - metroLoopStart;
+    var loopsElapsed = Math.floor(elapsed / lLoopDurSec);
+    var posInLoop = elapsed - loopsElapsed * lLoopDurSec;
+    var posTicks = posInLoop * 24 * bpm / 60;
+    var li = 0;
+    for (var i = 0; i < lSched.length; i++) {
+      if (lSched[i].tickPos > posTicks) { li = i; break; }
+      if (i === lSched.length - 1) { li = 0; loopsElapsed++; }
+    }
+    curLS = li;
+    lLoopCount = loopsElapsed;
+    nextLN = metroLoopStart + lLoopCount * lLoopDurSec + tickToSec(lSched[li].tickPos);
+  } else {
+    curLS = 0; lLoopCount = 0;
+  }
 }
 
 /* ═══════════════════════════════════════════
@@ -1412,6 +1435,10 @@ function beamLevel(t) { return t==='e'||t==='et'?1:t==='s'?2:t==='t'?3:0; }
 
 function renderPat() {
   var container = document.getElementById('patContainer');
+  // Restore display in case showResultStrip hid it
+  container.style.display = '';
+  var patCtrls = document.querySelector('.pat-controls');
+  if (patCtrls) patCtrls.style.display = '';
   container.innerHTML = '';
 
   // First pass: build each measure's bar element and estimate its width
@@ -1833,32 +1860,11 @@ function pickNote(newType) {
         }
       }
     } else {
-      // Can't fit in current measure — auto-create next line
-      var cap = measCap();
-      if (newDur > cap) {
-        // Note larger than entire measure — shake
-        var sheet = document.getElementById('npSheet');
-        sheet.classList.add('shake');
-        setTimeout(function() { sheet.classList.remove('shake'); }, 300);
-        return;
-      }
-      // Create next measure if needed
-      if (npMi + 1 >= measures.length) {
-        measures.push(defaultMeasure());
-      }
-      // Place note at start of next measure
-      var nm = measures[npMi + 1];
-      var navail = 0, neatCount = 0;
-      for (var i = 0; i < nm.length && navail < newDur; i++) {
-        navail += nm[i].dur;
-        neatCount++;
-      }
-      nm.splice(0, neatCount, {t:newType, dur:newDur});
-      var nleft = navail - newDur;
-      if (nleft > 0) {
-        var fills = fillWithRests(nleft);
-        for (var i = 0; i < fills.length; i++) nm.splice(1 + i, 0, fills[i]);
-      }
+      // Can't fit in current measure — reject with shake feedback
+      var sheet = document.getElementById('npSheet');
+      sheet.classList.add('shake');
+      setTimeout(function() { sheet.classList.remove('shake'); }, 300);
+      return;
     }
   }
   renderPat();
@@ -2019,8 +2025,9 @@ function npDelete() {
   var curSum = 0;
   flat.forEach(function(n) {
     if (curSum + n.dur > cap) {
-      // Pad current measure
-      while (curSum < cap) { var r = Math.min(cap - curSum, 24); newMeas[newMeas.length-1].push({t: r===24?'qr':r===12?'er':r===6?'sr':'qr', dur:r}); curSum += r; }
+      // Pad current measure with correctly-typed rests
+      var pad = fillWithRests(cap - curSum);
+      for (var i = 0; i < pad.length; i++) newMeas[newMeas.length-1].push(pad[i]);
       newMeas.push([]);
       curSum = 0;
     }
@@ -2028,7 +2035,10 @@ function npDelete() {
     curSum += n.dur;
   });
   // Pad last measure
-  while (curSum < cap) { var r = Math.min(cap - curSum, 24); newMeas[newMeas.length-1].push({t: r===24?'qr':r===12?'er':r===6?'sr':'qr', dur:r}); curSum += r; }
+  if (curSum < cap) {
+    var pad = fillWithRests(cap - curSum);
+    for (var i = 0; i < pad.length; i++) newMeas[newMeas.length-1].push(pad[i]);
+  }
   measures = newMeas;
   renderPat();
   closeNotePicker();
@@ -2069,12 +2079,16 @@ function batchDeleteAll() {
   var newMeas = [[]]; var curSum = 0;
   flat.forEach(function(n) {
     if (curSum + n.dur > cap) {
-      while (curSum < cap) { var r = Math.min(cap-curSum,24); newMeas[newMeas.length-1].push({t:r===24?'qr':r===12?'er':r===6?'sr':'qr',dur:r}); curSum+=r; }
+      var pad = fillWithRests(cap - curSum);
+      for (var i = 0; i < pad.length; i++) newMeas[newMeas.length-1].push(pad[i]);
       newMeas.push([]); curSum = 0;
     }
     newMeas[newMeas.length-1].push(n); curSum += n.dur;
   });
-  while (curSum < cap) { var r = Math.min(cap-curSum,24); newMeas[newMeas.length-1].push({t:r===24?'qr':r===12?'er':r===6?'sr':'qr',dur:r}); curSum+=r; }
+  if (curSum < cap) {
+    var pad = fillWithRests(cap - curSum);
+    for (var i = 0; i < pad.length; i++) newMeas[newMeas.length-1].push(pad[i]);
+  }
   measures = newMeas;
   batchCancel();
   renderPat();
@@ -2275,6 +2289,9 @@ function startMetro(skipCountoff) {
     setTimeout(function() { startMetro(skipCountoff); }, 30);
     return;
   }
+  // Guard: refuse to start with an empty pattern (don't mutate state/acquire wake lock)
+  var sched = buildSched();
+  if (!sched.length) return;
   isPlaying = true;
   if (!skipCountoff) { sessH = []; sessStart = Date.now(); sessBpm = bpm; clearMarkers(); clearResults(); }
   sBeats = []; curSub = 0; lastHit = 0; hitArmed = true;
@@ -2283,8 +2300,6 @@ function startMetro(skipCountoff) {
     wakeLock = l;
     l.addEventListener('release', function() { wakeLock = null; });
   }).catch(function() {});
-  var sched = buildSched();
-  if (!sched.length) { isPlaying = false; return; }
   var totalTicks = measures.length * measCap();
   metroLoopDur = tickToSec(totalTicks);
 
@@ -2293,7 +2308,8 @@ function startMetro(skipCountoff) {
   var trHint = document.getElementById('trHint'); if (trHint) trHint.style.visibility = 'hidden';
   var statusEl = document.getElementById('status');
 
-  var loopStart, loopCount = 0;
+  var loopStart;
+  loopCount = 0;
 
   if (skipCountoff) {
     // Seamless restart — start immediately
@@ -2439,6 +2455,12 @@ function startMetro(skipCountoff) {
 function rebuildGridLive() {
   gSched = (clickGrid) ? buildGridSched() : [];
   if (isPlaying && audioCtx && gSched.length > 0) {
+    // During count-off metroLoopStart is in the future — start fresh at loop start
+    if (inCountOff) {
+      curGS = 0; gLoopCount = 0;
+      nextGN = metroLoopStart + tickToSec(gSched[0].tickPos);
+      return;
+    }
     // Find where we are in the current loop to avoid double/skipped clicks
     var elapsed = audioCtx.currentTime - metroLoopStart;
     var loopsElapsed = Math.floor(elapsed / metroLoopDur);
@@ -3063,29 +3085,31 @@ function shareResults() {
     '</div>';
   document.body.appendChild(ov);
 
+  function closeOv() {
+    if (ov.parentNode) document.body.removeChild(ov);
+  }
   ov.addEventListener('click', function(e) {
-    if (e.target === ov) { document.body.removeChild(ov); }
+    if (e.target === ov) { closeOv(); }
   });
-  document.getElementById('shareClose').addEventListener('click', function() {
-    document.body.removeChild(ov);
-  });
+  document.getElementById('shareClose').addEventListener('click', closeOv);
   document.getElementById('shareCopy').addEventListener('click', function() {
     var canvas = renderShareCard();
     if (!canvas) return;
     canvas.toBlob(function(blob) {
       if (navigator.clipboard && window.ClipboardItem) {
         navigator.clipboard.write([new ClipboardItem({'image/png': blob})]).then(function() {
-          document.getElementById('shareCopy').textContent = '\u2705 Copied!';
-          setTimeout(function() { if (ov.parentNode) document.body.removeChild(ov); }, 800);
+          var btn = document.getElementById('shareCopy');
+          if (btn) btn.textContent = '\u2705 Copied!';
+          setTimeout(closeOv, 800);
         }).catch(function() {
           // Fallback: save instead
           saveBlobAsFile(blob);
-          document.body.removeChild(ov);
+          closeOv();
         });
       } else {
         // Clipboard API not available, fallback to save
         saveBlobAsFile(blob);
-        document.body.removeChild(ov);
+        closeOv();
       }
     }, 'image/png');
   });
@@ -3094,7 +3118,7 @@ function shareResults() {
     if (!canvas) return;
     canvas.toBlob(function(blob) {
       saveBlobAsFile(blob);
-      document.body.removeChild(ov);
+      closeOv();
     }, 'image/png');
   });
 }
@@ -3161,10 +3185,13 @@ function closeSettings() {
 /* ═══════════════════════════════════════════
    TIME SIGNATURE POPOVER
    ═══════════════════════════════════════════ */
+var _tsPopCloseFn = null;
 function toggleTsPopover(ev) {
   ev.stopPropagation();
   var pop = document.getElementById('tsPopover');
   if (!pop) return;
+  // Always remove any prior outside-click listener before state changes
+  if (_tsPopCloseFn) { document.removeEventListener('click', _tsPopCloseFn); _tsPopCloseFn = null; }
   if (pop.classList.contains('show')) { pop.classList.remove('show'); return; }
   // Position near the time signature
   var tsEl = document.querySelector('.ts-inline');
@@ -3176,8 +3203,14 @@ function toggleTsPopover(ev) {
   }
   pop.classList.add('show');
   updateTsPopover();
-  var close = function(e) { if (!pop.contains(e.target) && e.target !== tsEl && !tsEl.contains(e.target)) { pop.classList.remove('show'); document.removeEventListener('click', close); } };
-  setTimeout(function() { document.addEventListener('click', close); }, 0);
+  _tsPopCloseFn = function(e) {
+    if (!pop.contains(e.target) && e.target !== tsEl && !(tsEl && tsEl.contains(e.target))) {
+      pop.classList.remove('show');
+      document.removeEventListener('click', _tsPopCloseFn);
+      _tsPopCloseFn = null;
+    }
+  };
+  setTimeout(function() { if (_tsPopCloseFn) document.addEventListener('click', _tsPopCloseFn); }, 0);
 }
 function updateTsPopover() {
   var tEl = document.getElementById('tsPopTop');
@@ -3205,8 +3238,9 @@ function showHelp() {
     '<div class="share-close" id="helpClose">\u2715 Close</div>' +
     '</div>';
   document.body.appendChild(ov);
-  ov.addEventListener('click', function(e) { if (e.target === ov) document.body.removeChild(ov); });
-  document.getElementById('helpClose').addEventListener('click', function() { document.body.removeChild(ov); });
+  function closeOv() { if (ov.parentNode) document.body.removeChild(ov); }
+  ov.addEventListener('click', function(e) { if (e.target === ov) closeOv(); });
+  document.getElementById('helpClose').addEventListener('click', closeOv);
 }
 
 /* ═══════════════════════════════════════════
