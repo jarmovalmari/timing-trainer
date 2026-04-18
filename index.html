@@ -779,7 +779,9 @@ function loadPattern(idx) {
   var inlB = document.querySelector('.ts-inline-bot');
   if (inlT) inlT.textContent = tsTop;
   if (inlB) inlB.textContent = tsBot;
-  renderPat();
+  // Route through buildPat so any measure whose tick-sum doesn't match the
+  // current time signature is replaced rather than silently corrupting scheduling.
+  buildPat();
   closePatSheet();
   if (isPlaying) restartMetro();
 }
@@ -790,6 +792,12 @@ function deletePattern(idx, ev) {
   pats.splice(idx, 1);
   setSavedPatterns(pats);
   renderPatList();
+}
+
+function escHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function renderPatList() {
@@ -806,7 +814,7 @@ function renderPatList() {
     var bpmStr = p.bpm ? p.bpm + ' BPM' : '';
     var meta = [ts, bars + ' bar' + (bars !== 1 ? 's' : ''), bpmStr].filter(Boolean).join(' \u00b7 ');
     html += '<div class="pat-list-item" onclick="loadPattern('+i+')">' +
-      '<div><div class="pat-list-name">'+p.name+'</div><div class="pat-list-meta">'+meta+'</div></div>' +
+      '<div><div class="pat-list-name">'+escHtml(p.name)+'</div><div class="pat-list-meta">'+escHtml(meta)+'</div></div>' +
       '<div class="pat-list-del" onclick="deletePattern('+i+',event)">&times;</div></div>';
   });
   el.innerHTML = html;
@@ -1468,7 +1476,8 @@ function revealBpmInput(inp) {
       return;
     }
     var v = parseInt(inp.value);
-    if (v && v >= 20 && v <= 300) {
+    if (!isNaN(v) && v > 0) {
+      v = Math.max(20, Math.min(300, v));
       setBpm(v);
       if (isPlaying) restartMetro();
     }
@@ -1486,8 +1495,10 @@ function revealBpmInput(inp) {
 function adjTS(w, d) {
   if (w === 't') { tsTop = Math.max(1, Math.min(16, tsTop + d)); }
   else { var vs = [1,2,4,8,16]; var i = vs.indexOf(tsBot); i = Math.max(0, Math.min(vs.length-1, i+d)); tsBot = vs[i]; }
-  // Rebuild measures to fit new capacity
-  measures = [defaultMeasure()];
+  // Rebuild measures to fit new capacity — preserve bar count
+  var barCount = Math.max(1, measures.length);
+  measures = [];
+  for (var bi = 0; bi < barCount; bi++) measures.push(defaultMeasure());
   renderPat();
   if (isPlaying) restartMetro();
 }
@@ -1876,7 +1887,8 @@ function openNotePicker(mi, ni) {
 
   document.querySelectorAll('.beat-col.editing').forEach(function(el) { el.classList.remove('editing'); });
   document.querySelectorAll('.beat-col[data-measure="'+mi+'"][data-note="'+ni+'"]').forEach(function(el) { el.classList.add('editing'); });
-  document.getElementById('npTitle').textContent = 'Beat ' + (Math.floor(tickPosOf(mi,ni)/24)+1) + ' — ' + NT[note.t].label;
+  var beatTicks = Math.round(96 / tsBot); // ticks per denominator-beat
+  document.getElementById('npTitle').textContent = 'Beat ' + (Math.floor(tickPosOf(mi,ni)/beatTicks)+1) + ' — ' + NT[note.t].label;
   document.getElementById('npOv').classList.add('show');
   setTimeout(function() { document.getElementById('npSheet').classList.add('show'); }, 10);
 }
@@ -1899,45 +1911,69 @@ function pickNote(newType) {
   var m = measures[npMi];
   var oldNote = m[npNi];
   var newDur = NT[newType].dur;
-  var oldDur = oldNote.dur;
 
-  if (newDur === oldDur) {
-    // Same duration — just swap type
-    m[npNi] = {t:newType, dur:newDur};
-  } else if (newDur < oldDur) {
-    // Shorter — replace and fill remainder with rests
-    var diff = oldDur - newDur;
-    m[npNi] = {t:newType, dur:newDur};
+  function shakeReject() {
+    var sheet = document.getElementById('npSheet');
+    sheet.classList.add('shake');
+    setTimeout(function() { sheet.classList.remove('shake'); }, 300);
+  }
+
+  // Triplet guard: et (8) and qt (16) are not multiples of 3, so any stray
+  // remainder after a replacement cannot be filled by rests (min rest=3 ticks)
+  // and would silently corrupt the measure. If the target is a triplet,
+  // expand the edit to the entire 3-note group so durations stay on
+  // multiple-of-3 boundaries.
+  var rangeStart = npNi, rangeEnd = npNi, rangeDur = oldNote.dur;
+  if (NT[oldNote.t] && NT[oldNote.t].trip) {
+    var tDur = oldNote.dur;
+    var before = 0;
+    for (var bi = npNi - 1; bi >= 0 && NT[m[bi].t] && NT[m[bi].t].trip && m[bi].dur === tDur; bi--) before++;
+    var gs = npNi - (before % 3);
+    var ge = gs + 2;
+    if (gs < 0 || ge >= m.length ||
+        !NT[m[gs].t] || !NT[m[gs].t].trip || m[gs].dur !== tDur ||
+        !NT[m[ge].t] || !NT[m[ge].t].trip || m[ge].dur !== tDur) {
+      shakeReject();
+      return;
+    }
+    rangeStart = gs; rangeEnd = ge; rangeDur = tDur * 3; // 24 or 48 — multiple of 3
+  }
+
+  var removed = rangeEnd - rangeStart + 1;
+
+  if (newDur === rangeDur) {
+    m.splice(rangeStart, removed, {t:newType, dur:newDur});
+  } else if (newDur < rangeDur) {
+    var diff = rangeDur - newDur;
+    m.splice(rangeStart, removed, {t:newType, dur:newDur});
     var fillNotes = fillWithRests(diff);
-    // Insert fill notes after current position
-    for (var i = fillNotes.length - 1; i >= 0; i--) {
-      m.splice(npNi + 1, 0, fillNotes[i]);
+    for (var fi = 0; fi < fillNotes.length; fi++) {
+      m.splice(rangeStart + 1 + fi, 0, fillNotes[fi]);
     }
   } else {
     // Longer — try to absorb following notes
-    var avail = oldDur;
-    var eatCount = 0;
-    for (var i = npNi + 1; i < m.length && avail < newDur; i++) {
-      avail += m[i].dur;
-      eatCount++;
+    var avail = rangeDur;
+    var eatEnd = rangeEnd;
+    for (var ei = rangeEnd + 1; ei < m.length && avail < newDur; ei++) {
+      avail += m[ei].dur;
+      eatEnd = ei;
     }
-    if (avail >= newDur) {
-      // Can fit — remove eaten notes, place new note, fill remainder
-      m.splice(npNi, 1 + eatCount);
-      m.splice(npNi, 0, {t:newType, dur:newDur});
-      var leftover = avail - newDur;
-      if (leftover > 0) {
-        var fillNotes = fillWithRests(leftover);
-        for (var i = 0; i < fillNotes.length; i++) {
-          m.splice(npNi + 1 + i, 0, fillNotes[i]);
-        }
-      }
-    } else {
-      // Can't fit in current measure — reject with shake feedback
-      var sheet = document.getElementById('npSheet');
-      sheet.classList.add('shake');
-      setTimeout(function() { sheet.classList.remove('shake'); }, 300);
+    if (avail < newDur) { shakeReject(); return; }
+    // Don't let absorption slice through a triplet group (would orphan 1-2 triplet notes)
+    if (eatEnd + 1 < m.length &&
+        NT[m[eatEnd].t] && NT[m[eatEnd].t].trip &&
+        NT[m[eatEnd+1].t] && NT[m[eatEnd+1].t].trip &&
+        m[eatEnd].dur === m[eatEnd+1].dur) {
+      shakeReject();
       return;
+    }
+    m.splice(rangeStart, eatEnd - rangeStart + 1, {t:newType, dur:newDur});
+    var leftover = avail - newDur;
+    if (leftover > 0) {
+      var fillNotes2 = fillWithRests(leftover);
+      for (var li = 0; li < fillNotes2.length; li++) {
+        m.splice(rangeStart + 1 + li, 0, fillNotes2[li]);
+      }
     }
   }
   renderPat();
@@ -2013,7 +2049,14 @@ function fillWithRests(ticks) {
         break;
       }
     }
-    if (!found) break; // safety: no rest fits remaining ticks
+    if (!found) {
+      // Remaining ticks < smallest rest (3). Callers must pass multiples of 3
+      // to avoid silent measure-corruption; warn to catch regressions.
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn('fillWithRests: ' + rem + ' leftover tick(s) cannot be filled (input=' + ticks + ')');
+      }
+      break;
+    }
   }
   return fills;
 }
@@ -3340,7 +3383,7 @@ function adjTSPop(which, d) {
   }
   var sGS = localStorage.getItem('tt_gs');
   if (sGS && gridSubCounts[sGS]) gridSub = sGS;
-  try { var sGP = JSON.parse(localStorage.getItem('tt_gp')); if (sGP && sGP.length === gridSubCounts[gridSub]) gridPos = sGP; } catch(e) {}
+  try { var sGP = JSON.parse(localStorage.getItem('tt_gp')); if (Array.isArray(sGP) && sGP.length === gridSubCounts[gridSub]) gridPos = sGP; } catch(e) {}
   var sCMU = localStorage.getItem('tt_cmu');
   if (sCMU === '1') clickMute = true;
   var sCMP = localStorage.getItem('tt_cmp');
