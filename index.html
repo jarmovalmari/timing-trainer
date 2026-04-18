@@ -1116,7 +1116,8 @@ var PERC_SOUNDS = {
   tomL: function(t,v) { playPercTom(t,v,80); },
   tomH: function(t,v) { playPercTom(t,v,160); },
   bassR: function(t,v) { playPercBass(t,v,131); }, // C3 — tumbao root
-  bassF: function(t,v) { playPercBass(t,v,98); }   // G2 — fifth below root
+  bassU: function(t,v) { playPercBass(t,v,175); }, // F3 — fourth above root (bar 1 ponche)
+  bassD: function(t,v) { playPercBass(t,v,87);  }  // F2 — fifth below root (bar 2 ponche)
 };
 
 // Loop pattern definitions: arrays of {tick, sound, vel}
@@ -1182,12 +1183,16 @@ var PERC_LOOPS = {
     {tick:48, s:'shaker', v:0.7}, {tick:54, s:'shaker', v:0.3}, {tick:60, s:'shaker', v:0.5}, {tick:66, s:'shaker', v:0.3},
     {tick:72, s:'shaker', v:0.7}, {tick:78, s:'shaker', v:0.3}, {tick:84, s:'shaker', v:0.5}, {tick:90, s:'shaker', v:0.3}
   ]},
-  'tumbao': { name: 'Tumbao Bass', bars: 1, events: [
-    // Classic son/salsa bass tumbao (bombo–ponche). Beat 1 is silent —
-    // it's anticipated by the long fifth on beat 4 ringing into the next bar.
-    // Pitches: root (C3) on "and of 2", fifth below (G2) on beat 4.
-    {tick:36, s:'bassR', v:1},    // and-of-2 bombo: root
-    {tick:72, s:'bassF', v:0.95}  // beat 4 ponche: fifth (tied feel via long decay)
+  'tumbao': { name: 'Tumbao Bass', bars: 2, events: [
+    // Two-bar son/salsa tumbao: root on "and of 2" of each bar,
+    // ponche on beat 4 alternates between fourth-up (bar 1) and fifth-down (bar 2).
+    // Beat 1 is silent — anticipated by the long ponche ringing into the next bar.
+    // Bar 1: root (C3) on and-of-2, fourth-up (F3) on beat 4
+    {tick:36,  s:'bassR', v:1},
+    {tick:72,  s:'bassU', v:0.95},
+    // Bar 2: root (C3) on and-of-2, fifth-down (F2) on beat 4
+    {tick:132, s:'bassR', v:1},
+    {tick:168, s:'bassD', v:0.95}
   ]}
 };
 
