@@ -674,6 +674,7 @@ var isPlaying = false, isInit = false, wakeLock = null, pendingGo = false;
 var bpm = 100, tsTop = 4, tsBot = 4, aMode = 's', latMs = 0, clickVol = 80;
 var measures = []; // array of arrays: [[{t,dur},...],...]
 var sens = 12, hitWin = 120, MR = 35, RA = 0.3, ML = 150; // min retrigger ms, re-arm fraction, max lockout ms
+var _effHitWin = 120; // hitWin scaled to current tempo — procHit reads this (set in startHitDet)
 var lastHit = 0, hitArmed = true, micPoll = null, micMeterI = null;
 var schedT = null, nextNote = 0, curSub = 0, sBeats = [], countOffTids = [], inCountOff = false;
 var LA = 100, SI = 20, clickBlank = [], BLANK_AFTER = 50;
@@ -821,6 +822,37 @@ function clearPattern() { measures = measures.map(function() { return defaultMea
 var micSrcNode = null; // keep reference so we can disconnect on switch
 var _micReconnecting = false, _lastMicReconnect = 0;
 
+// Plays a 1-sample silent buffer to force the audio thread to wake up.
+// iOS/Safari hold the audio graph dormant until the first actual source plays;
+// without this primer the first scheduled click can be silent or ramp in quietly.
+function warmupAudio() {
+  if (!audioCtx || audioCtx.state !== 'running') return;
+  try {
+    var b = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
+    var s = audioCtx.createBufferSource();
+    s.buffer = b;
+    s.connect(audioCtx.destination);
+    s.start(0);
+  } catch(e) {}
+}
+
+// Prime the audio context before scheduling anything time-critical.
+// Resumes if suspended, warms the graph, and waits until the audio clock
+// has actually advanced past the given minimum (so setValueAtTime works).
+async function primeAudio(minClockSec) {
+  if (!audioCtx) return false;
+  if (audioCtx.state === 'suspended') {
+    try { await audioCtx.resume(); } catch(e) { return false; }
+  }
+  warmupAudio();
+  var minT = (typeof minClockSec === 'number') ? minClockSec : 0.02;
+  var deadline = Date.now() + 600;
+  while (audioCtx.currentTime < minT && Date.now() < deadline) {
+    await new Promise(function(r) { setTimeout(r, 15); });
+  }
+  return audioCtx.state === 'running';
+}
+
 async function ensureInit() {
   if (isInit) return true;
   try {
@@ -829,6 +861,7 @@ async function ensureInit() {
     if (audioCtx.state === 'suspended') await audioCtx.resume();
     masterGain = audioCtx.createGain();
     masterGain.connect(audioCtx.destination);
+    warmupAudio(); // prime the graph so the first count-off click isn't silent/quiet
     await connectMic();
     startMicMeter();
     isInit = true;
@@ -2317,17 +2350,13 @@ function playCountClick(t) {
   if (aMode === 's') clickBlank.push(t);
 }
 
-function startMetro(skipCountoff) {
-  // Ensure AudioContext is running before scheduling (iOS may have suspended it)
-  if (audioCtx && audioCtx.state === 'suspended') {
-    audioCtx.resume().then(function() { startMetro(skipCountoff); });
-    return;
-  }
-  // Guard: after resume(), clock may not be ticking yet (common on iOS).
-  // Wait until currentTime advances before scheduling anything.
-  if (audioCtx && audioCtx.currentTime < 0.001) {
-    setTimeout(function() { startMetro(skipCountoff); }, 30);
-    return;
+async function startMetro(skipCountoff) {
+  // Resume + warm the audio graph and wait for the clock to actually advance.
+  // Fixes: (a) no-sound after screen lock / app switch, (b) first count-off
+  // click silent or ramping in quietly from a cold audio thread.
+  if (audioCtx) {
+    var ready = await primeAudio(0.03);
+    if (!ready) return;
   }
   // Guard: refuse to start with an empty pattern (don't mutate state/acquire wake lock)
   var sched = buildSched();
@@ -2623,9 +2652,13 @@ function startHitDet() {
   var noteInt = getMinNoteMs();
   var eML = Math.max(MR + 10, Math.min(ML, noteInt * 0.8));
   var eRA = noteInt < 150 ? 0.5 : RA; // relax re-arm threshold at fast tempos
-  // Multi-drum lockout: ignore peaks within 50ms of last registered hit (prevents
-  // simultaneous hihat+snare/kick from registering as two separate hits)
-  var MULTI_DRUM_LOCKOUT = 50;
+  // Multi-drum lockout prevents simultaneous hihat+snare from registering as two hits.
+  // Must stay below the beat interval so fast-tempo consecutive hits still register —
+  // 50% of the shortest note, capped at 50ms, floored at 20ms to survive typical noise.
+  var MULTI_DRUM_LOCKOUT = Math.max(20, Math.min(50, noteInt * 0.5));
+  // Hit-match window: never let it span half a beat, else a hit could be matched
+  // to the wrong scheduled beat at fast tempos.
+  _effHitWin = Math.min(hitWin, noteInt * 0.48);
   micPoll = setInterval(function() {
     try {
       if (!analyser || !isPlaying) return;
@@ -2664,7 +2697,7 @@ function stopHitDet() { if (micPoll) { clearInterval(micPoll); micPoll = null; }
 
 function procHit(ht) {
   var comp = ht + (latMs / 1000);
-  var winSec = hitWin / 1000;
+  var winSec = _effHitWin / 1000; // tempo-scaled in startHitDet
   var best = Infinity, bb = null;
   // Only match beats within the hit window (not global closest).
   // This prevents hits in bar 2+ from matching stale bar-1 entries.
@@ -3414,13 +3447,21 @@ function adjTSPop(which, d) {
   document.getElementById('latIn').addEventListener('input', function(e) { latMs = Math.max(-500, Math.min(500, parseInt(e.target.value)||0)); });
   document.addEventListener('visibilitychange', function() {
     if (document.visibilityState === 'visible') {
-      // Resume AudioContext if suspended (iOS backgrounds suspend it)
+      // Resume AudioContext if suspended (iOS backgrounds suspend it).
+      // Must await resume AND warm the graph, otherwise new oscillators
+      // can be scheduled before the audio thread is back online and play silent.
       if (audioCtx && audioCtx.state === 'suspended') {
-        audioCtx.resume().then(function() {
-          // Always restart hit detection after resume to recover from stale state
+        (async function() {
+          var ok = await primeAudio();
+          if (!ok) return;
+          // Restart hit detection after resume to recover from stale state
           if (isPlaying) { stopHitDet(); startHitDet(); }
           updateMicStatus();
-        }).catch(function() {});
+        })();
+      } else if (audioCtx && audioCtx.state === 'running') {
+        // Some platforms don't suspend but the graph still stalls after backgrounding —
+        // a warmup ping is cheap insurance.
+        warmupAudio();
       }
       // Reconnect dead mic tracks (iOS kills them on background/screen lock)
       var micDead = isInit && micStream && micStream.getTracks().every(function(t) { return t.readyState === 'ended'; });
