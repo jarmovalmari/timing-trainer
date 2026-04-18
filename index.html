@@ -424,9 +424,25 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 <div class="settings-popover" id="panelHelp">
   <div class="settings-popover-handle"></div>
   <div class="settings-popover-title">Help <span class="settings-popover-close" onclick="closeSettings()">&times;</span></div>
-  <div style="font-size:13px;color:var(--text-dim);line-height:1.6">
-    <p style="margin:0 0 12px">Got feedback?</p>
-    <a class="help-link" href="https://www.instagram.com/jaygr/" target="_blank" rel="noopener" style="color:var(--gold);text-decoration:none">Send DM to @jaygr on Instagram</a>
+  <div style="font-size:13px;color:var(--text-dim);line-height:1.55">
+    <div style="background:var(--surface2);border:1px solid var(--border);border-left:3px solid var(--gold);border-radius:8px;padding:10px 12px;margin-bottom:14px">
+      <div style="color:var(--text);font-weight:600;margin-bottom:4px">Consistently late or rushing?</div>
+      <div>This usually means your <b>audio mode</b> is wrong for how you&rsquo;re listening, or you need to <b>recalibrate</b>. Each mode (wired / speaker / Bluetooth) has its own latency — if you switch headphones or speaker output, check the mode first, then recalibrate.</div>
+    </div>
+
+    <div style="color:var(--text);font-weight:600;margin:0 0 4px">Audio Mode &amp; Latency</div>
+    <p style="margin:0 0 12px">The click is heard differently depending on your output. <b>Wired</b> (headphones/line-out) is near-zero latency. <b>Speaker</b> has added air travel time. <b>Bluetooth</b> adds 100&ndash;300&nbsp;ms codec delay. The app stores a separate calibration value for each mode, so switching output types works correctly — but <b>you must tell the app which mode you&rsquo;re using</b> via the speaker icon in the transport bar.</p>
+
+    <div style="color:var(--text);font-weight:600;margin:0 0 4px">Calibration</div>
+    <p style="margin:0 0 12px">Calibration measures the round-trip delay between the click playing and your mic hearing it, so hit timing is compared against what you <i>actually</i> heard, not what the app scheduled. Without calibration the <span style="text-decoration:underline;cursor:pointer;color:var(--accent)" onclick="closeSettings();startCalib()">Calibrate</span> hint appears under your results. Recalibrate whenever you change headphones, speakers, or room setup.</p>
+
+    <div style="color:var(--text);font-weight:600;margin:0 0 4px">Mic Sensitivity (Threshold)</div>
+    <p style="margin:0 0 14px">The <b>Thresh</b> slider in the mic panel sets how loud a sound has to be to count as a hit. Watch the level meter while you play &mdash; set the threshold line just above the ambient noise floor but well below your hits. Phantom hits in your results (counts nowhere near the beat)? Raise the threshold. Missing soft hits? Lower it.</p>
+
+    <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
+      <div style="margin:0 0 8px">Got feedback?</div>
+      <a class="help-link" href="https://www.instagram.com/jaygr/" target="_blank" rel="noopener" style="color:var(--gold);text-decoration:none">Send DM to @jaygr on Instagram</a>
+    </div>
   </div>
 </div>
 
@@ -1072,6 +1088,21 @@ function playPercTom(t, vol, pitch) {
   o.start(t); o.stop(t + 0.15);
 }
 
+// Bass voice for tumbao/melodic loops: triangle fundamental, pluck attack, long decay
+function playPercBass(t, vol, pitch) {
+  var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+  o.type = 'triangle';
+  o.connect(g); g.connect(masterGain);
+  // Pluck-like pitch click: start slightly above pitch, settle fast
+  o.frequency.setValueAtTime(pitch * 1.5, t);
+  o.frequency.exponentialRampToValueAtTime(pitch, t + 0.015);
+  // Fast attack, long decay so tumbao beat-4 rings across the bar line
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.85 * vol, t + 0.008);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+  o.start(t); o.stop(t + 0.55);
+}
+
 // Dispatch percussion event by type
 var PERC_SOUNDS = {
   kick: function(t,v) { playPercKick(t,v); },
@@ -1083,7 +1114,9 @@ var PERC_SOUNDS = {
   cowbell: function(t,v) { playPercCowbell(t,v); },
   shaker: function(t,v) { playPercShaker(t,v); },
   tomL: function(t,v) { playPercTom(t,v,80); },
-  tomH: function(t,v) { playPercTom(t,v,160); }
+  tomH: function(t,v) { playPercTom(t,v,160); },
+  bassR: function(t,v) { playPercBass(t,v,131); }, // C3 — tumbao root
+  bassF: function(t,v) { playPercBass(t,v,98); }   // G2 — fifth below root
 };
 
 // Loop pattern definitions: arrays of {tick, sound, vel}
@@ -1149,10 +1182,12 @@ var PERC_LOOPS = {
     {tick:48, s:'shaker', v:0.7}, {tick:54, s:'shaker', v:0.3}, {tick:60, s:'shaker', v:0.5}, {tick:66, s:'shaker', v:0.3},
     {tick:72, s:'shaker', v:0.7}, {tick:78, s:'shaker', v:0.3}, {tick:84, s:'shaker', v:0.5}, {tick:90, s:'shaker', v:0.3}
   ]},
-  'tumbao': { name: 'Tumbao', bars: 1, events: [
-    // Standard conga tumbao (tomH=slap, tomL=open tone)
-    // Slap on beat 3, open tones on "a of 3" and "e of 4"
-    {tick:48, s:'tomH', v:1}, {tick:66, s:'tomL', v:0.9}, {tick:78, s:'tomL', v:0.85}
+  'tumbao': { name: 'Tumbao Bass', bars: 1, events: [
+    // Classic son/salsa bass tumbao (bombo–ponche). Beat 1 is silent —
+    // it's anticipated by the long fifth on beat 4 ringing into the next bar.
+    // Pitches: root (C3) on "and of 2", fifth below (G2) on beat 4.
+    {tick:36, s:'bassR', v:1},    // and-of-2 bombo: root
+    {tick:72, s:'bassF', v:0.95}  // beat 4 ponche: fifth (tied feel via long decay)
   ]}
 };
 
@@ -2938,7 +2973,7 @@ function showResultStrip() {
   var strip = document.getElementById('resultStrip');
   strip.innerHTML =
     '<div class="result-strip">' +
-    '<div class="result-tend"><span style="'+tstyle+'">'+tend+'</span><div style="display:flex;gap:6px"><div class="result-clear" onclick="shareResults()" title="Share"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></div><div class="result-clear" onclick="clearResults()" title="Clear"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div></div></div>' +
+    '<div class="result-tend"><span style="'+tstyle+'">'+tend+'</span><div style="display:flex;gap:6px"><div class="result-clear" onclick="openSettingsPanel(\'help\')" title="Help &mdash; why am I late/rushing?"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><div class="result-clear" onclick="shareResults()" title="Share"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></div><div class="result-clear" onclick="clearResults()" title="Clear"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div></div></div>' +
     '<div class="result-meta">' + sessBpm + ' BPM \u00b7 ' + durStr + ' \u00b7 ' + sessH.length + ' hits</div>' +
     '<div class="result-stats">' +
     '<div class="result-stat">avg <span>'+Math.round(avg)+'ms</span></div>' +
@@ -3223,20 +3258,7 @@ function adjTSPop(which, d) {
   if (inlB) inlB.textContent = tsBot;
 }
 
-function showHelp() {
-  var ov = document.createElement('div');
-  ov.className = 'share-ov';
-  ov.innerHTML =
-    '<div class="share-card">' +
-    '<div class="share-title">Timing Trainer</div>' +
-    '<div style="font-size:13px;color:var(--text-dim);margin-bottom:16px">Got feedback? <a class="help-link" href="https://www.instagram.com/jaygr/" target="_blank" rel="noopener">Send DM to @jaygr</a> on Instagram</div>' +
-    '<div class="share-close" id="helpClose">\u2715 Close</div>' +
-    '</div>';
-  document.body.appendChild(ov);
-  function closeOv() { if (ov.parentNode) document.body.removeChild(ov); }
-  ov.addEventListener('click', function(e) { if (e.target === ov) closeOv(); });
-  document.getElementById('helpClose').addEventListener('click', closeOv);
-}
+// showHelp() overlay removed — the real help lives in #panelHelp (settings popover)
 
 /* ═══════════════════════════════════════════
    BOOT
