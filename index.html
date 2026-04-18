@@ -2688,11 +2688,6 @@ function setMode(m) {
   }
 }
 
-function cycleMode() {
-  var next = aMode === 'w' ? 's' : aMode === 's' ? 'bt' : 'w';
-  setMode(next);
-}
-
 function latKey() { return aMode === 'bt' ? 'tt_bt' : aMode === 's' ? 'tt_s' : 'tt_w'; }
 function latDefault() { return aMode === 's' ? -25 : (aMode === 'w' ? -51 : 0); }
 
@@ -3266,20 +3261,10 @@ function showHelp() {
   document.getElementById('modeW').className = 'mode-btn' + (aMode === 'w' ? ' active' : '');
   document.getElementById('modeS').className = 'mode-btn' + (aMode === 's' ? ' active' : '');
   document.getElementById('modeBT').className = 'mode-btn' + (aMode === 'bt' ? ' active' : '');
-  // Audio button: tap = cycle mode, long press = open audio settings
-  (function() {
-    var ab = document.getElementById('btnAudio'), _at = null, _aDidLong = false;
-    ab.addEventListener('pointerdown', function(e) {
-      _aDidLong = false;
-      _at = setTimeout(function() { _at = null; _aDidLong = true; openSettingsPanel('audio'); }, 400);
-    });
-    ab.addEventListener('pointerup', function() {
-      if (_at) { clearTimeout(_at); _at = null; }
-      if (!_aDidLong) cycleMode();
-    });
-    ab.addEventListener('pointercancel', function() { if (_at) { clearTimeout(_at); _at = null; } });
-    ab.addEventListener('contextmenu', function(e) { e.preventDefault(); });
-  })();
+  // Audio button: tap opens audio settings (mode change happens in the panel)
+  document.getElementById('btnAudio').addEventListener('click', function() {
+    openSettingsPanel('audio');
+  });
   // Restore sound tile settings
   var sPat = localStorage.getItem('tt_sndPat');
   var sGrid = localStorage.getItem('tt_sndGrid');
