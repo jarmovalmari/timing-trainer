@@ -253,6 +253,21 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .pat-list-del { padding:4px 8px; font-size:16px; color:var(--text-dim); cursor:pointer; flex-shrink:0; }
 .pat-list-del:active { color:var(--red); }
 .pat-sheet-empty { font-size:12px; color:var(--text-dim); text-align:center; padding:20px 0; }
+.pat-list-item.stock { border-color:rgba(245,197,24,0.22); }
+.pat-stock-badge { display:inline-block; margin-left:6px; padding:1px 6px; font-family:'JetBrains Mono',monospace; font-size:9px; letter-spacing:0.5px; color:var(--accent); background:rgba(245,197,24,0.08); border:1px solid rgba(245,197,24,0.35); border-radius:4px; vertical-align:middle; }
+.pat-list-restore { font-size:11px; color:var(--text-dim); text-align:center; padding:14px 0 4px; cursor:pointer; text-decoration:underline; }
+.pat-list-restore:active { color:var(--text); }
+/* Save confirmation dialog */
+.save-dlg-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:500; }
+.save-dlg-bg.show { display:block; }
+.save-dlg { display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:510; min-width:280px; max-width:90vw; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px 16px; box-shadow:0 12px 36px rgba(0,0,0,0.5); }
+.save-dlg.show { display:block; }
+.save-dlg-title { font-size:14px; font-weight:600; margin-bottom:6px; color:var(--text); }
+.save-dlg-msg { font-size:12px; color:var(--text-dim); line-height:1.5; margin-bottom:14px; }
+.save-dlg-btns { display:flex; flex-direction:column; gap:8px; }
+.save-dlg-btn { padding:10px 14px; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; text-align:center; border:1px solid var(--border); background:var(--surface2); color:var(--text); }
+.save-dlg-btn.primary { background:var(--accent); color:var(--bg); border-color:var(--accent); }
+.save-dlg-btn:active { opacity:0.8; }
 .help-link { color:var(--accent); text-decoration:underline; }
 .share-card .share-title { font-size:14px; font-weight:600; margin-bottom:12px; }
 .share-btn { display:block; width:100%; padding:12px; margin-bottom:8px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:13px; cursor:pointer; text-align:center; }
@@ -505,6 +520,18 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
   <div id="patList"></div>
 </div>
 
+<!-- Save confirmation dialog (overwrite vs save-as-new) -->
+<div class="save-dlg-bg" id="saveDlgBg" onclick="hideSaveDialog()"></div>
+<div class="save-dlg" id="saveDlg">
+  <div class="save-dlg-title" id="saveDlgTitle">Save</div>
+  <div class="save-dlg-msg" id="saveDlgMsg"></div>
+  <div class="save-dlg-btns">
+    <div class="save-dlg-btn primary" id="saveDlgOv" onclick="saveDlgOverwrite()">Overwrite</div>
+    <div class="save-dlg-btn" onclick="saveDlgSaveAsNew()">Save as new</div>
+    <div class="save-dlg-btn" onclick="hideSaveDialog()">Cancel</div>
+  </div>
+</div>
+
 <!-- Note Picker -->
 <div class="np-overlay" id="npOv" onclick="closeNotePicker()"></div>
 <div class="np-sheet" id="npSheet">
@@ -719,6 +746,113 @@ function defaultMeasure() {
 }
 
 /* ═══════════════════════════════════════════
+   STOCK PATTERNS (factory defaults — user can edit + overwrite or fork)
+   ═══════════════════════════════════════════ */
+// Helpers for building measures: repN(type, dur, count) -> array of notes
+function repN(t, dur, count) {
+  var a = [];
+  for (var i = 0; i < count; i++) a.push({t:t, dur:dur});
+  return a;
+}
+// STOCK_PATTERNS is the source of truth. Each entry is installed into user's
+// saved-patterns list on first run (and re-installable via "Restore stock").
+// stockKey lets us re-sync if the user overwrites and later wants the original.
+var STOCK_PATTERNS = [
+  { stockKey:'pyramid', name:'Note Pyramid', tsTop:4, tsBot:4, bpm:80,
+    measures: [
+      repN('q', 24, 4),   // quarters
+      repN('e', 12, 8),   // eighths
+      repN('s', 6,  16),  // sixteenths
+      repN('t', 3,  32)   // thirty-seconds
+    ]},
+  { stockKey:'quarters', name:'Quarter Notes', tsTop:4, tsBot:4, bpm:90,
+    measures: [ repN('q',24,4), repN('q',24,4) ]},
+  { stockKey:'eighths', name:'Eighth Notes', tsTop:4, tsBot:4, bpm:90,
+    measures: [ repN('e',12,8), repN('e',12,8) ]},
+  { stockKey:'sixteenths', name:'Sixteenth Notes', tsTop:4, tsBot:4, bpm:80,
+    measures: [ repN('s',6,16), repN('s',6,16) ]},
+  { stockKey:'triplets-8', name:'8th Triplets', tsTop:4, tsBot:4, bpm:80,
+    measures: [ repN('et',8,12), repN('et',8,12) ]},
+  { stockKey:'triplets-q', name:'Quarter Triplets', tsTop:4, tsBot:4, bpm:90,
+    measures: [ repN('qt',16,6), repN('qt',16,6) ]},
+  { stockKey:'mixed-sub', name:'Mixed Subdivisions', tsTop:4, tsBot:4, bpm:80,
+    measures: [
+      repN('q',24,4),
+      repN('e',12,8),
+      repN('s',6,16),
+      repN('et',8,12)
+    ]},
+  // "1 e-and" feel: eighth + two sixteenths per beat
+  { stockKey:'e-ss', name:'8th + 2 16ths', tsTop:4, tsBot:4, bpm:90,
+    measures: (function() {
+      var beat = [{t:'e',dur:12},{t:'s',dur:6},{t:'s',dur:6}];
+      var bar = beat.concat(beat, beat, beat);
+      return [bar.map(function(n){return {t:n.t,dur:n.dur};}), bar.map(function(n){return {t:n.t,dur:n.dur};})];
+    })()
+  },
+  // "1-e-and" inverted — two sixteenths + eighth per beat
+  { stockKey:'ss-e', name:'2 16ths + 8th', tsTop:4, tsBot:4, bpm:90,
+    measures: (function() {
+      var beat = [{t:'s',dur:6},{t:'s',dur:6},{t:'e',dur:12}];
+      var bar = beat.concat(beat, beat, beat);
+      return [bar.map(function(n){return {t:n.t,dur:n.dur};}), bar.map(function(n){return {t:n.t,dur:n.dur};})];
+    })()
+  },
+  { stockKey:'triplet-straight', name:'Triplet → Straight', tsTop:4, tsBot:4, bpm:90,
+    measures: [ repN('et',8,12), repN('e',12,8) ]},
+  // Syncopation: 8th rest + 8th per beat ("& of" pattern)
+  { stockKey:'off-beats', name:'Off-Beats', tsTop:4, tsBot:4, bpm:90,
+    measures: (function() {
+      var beat = [{t:'er',dur:12},{t:'e',dur:12}];
+      var bar = beat.concat(beat, beat, beat);
+      return [bar.map(function(n){return {t:n.t,dur:n.dur};}), bar.map(function(n){return {t:n.t,dur:n.dur};})];
+    })()
+  }
+];
+
+// Clone a stock entry into a saved-pattern object
+function cloneStock(st) {
+  return {
+    name: st.name, tsTop: st.tsTop, tsBot: st.tsBot, bpm: st.bpm,
+    measures: st.measures.map(function(m){ return m.map(function(n){ return {t:n.t, dur:n.dur}; }); }),
+    stock: true, stockKey: st.stockKey,
+    clickPattern: true, clickGrid: false, clickMute: false, clickMutePct: 30,
+    loopEnabled: false, loopType: 'none'
+  };
+}
+
+// Seed stock patterns on first run, or top up any missing stockKeys on later launches
+function installStockPatterns() {
+  var installedFlag = localStorage.getItem('tt_stock_installed_v1');
+  var pats = getSavedPatterns();
+  if (installedFlag === '1') {
+    // Top-up pass: add any stockKey that's missing (e.g. new stock shipped in update)
+    var haveKeys = {};
+    pats.forEach(function(p){ if (p.stockKey) haveKeys[p.stockKey] = true; });
+    var added = 0;
+    STOCK_PATTERNS.forEach(function(st) {
+      if (!haveKeys[st.stockKey]) { pats.push(cloneStock(st)); added++; }
+    });
+    if (added) setSavedPatterns(pats);
+    return;
+  }
+  // First-run: prepend stock patterns (above any existing user patterns)
+  var seeds = STOCK_PATTERNS.map(cloneStock);
+  setSavedPatterns(seeds.concat(pats));
+  localStorage.setItem('tt_stock_installed_v1', '1');
+}
+
+// Restore stock patterns to their factory state (keeps user patterns intact)
+function restoreStockPatterns() {
+  var pats = getSavedPatterns();
+  // Keep user (non-stock) entries as-is; replace stock entries with fresh clones
+  var userOnly = pats.filter(function(p){ return !p.stock; });
+  var seeds = STOCK_PATTERNS.map(cloneStock);
+  setSavedPatterns(seeds.concat(userOnly));
+  renderPatList();
+}
+
+/* ═══════════════════════════════════════════
    SAVED PATTERNS
    ═══════════════════════════════════════════ */
 function getSavedPatterns() {
@@ -737,23 +871,88 @@ function closePatSheet() {
   document.getElementById('patSheetBg').classList.remove('show');
 }
 
-function saveCurrentPattern() {
-  var name = document.getElementById('patSaveName').value.trim();
-  if (!name) { document.getElementById('patSaveName').focus(); return; }
-  var pats = getSavedPatterns();
-  pats.unshift({ name: name, tsTop: tsTop, tsBot: tsBot, bpm: bpm, measures: measures,
+// Track which saved pattern (if any) the user loaded into the editor. If it's
+// a stock pattern, the save dialog offers "Overwrite stock" vs "Save as new".
+var loadedPatIdx = -1;
+
+function buildPatPayload(name) {
+  return { name: name, tsTop: tsTop, tsBot: tsBot, bpm: bpm,
+    measures: measures.map(function(m){ return m.map(function(n){ return {t:n.t,dur:n.dur}; }); }),
     clickPattern: clickPattern, clickGrid: clickGrid, gridSub: gridSub, gridPos: gridPos.slice(),
     clickMute: clickMute, clickMutePct: clickMutePct, clickVol: clickVol,
-    loopEnabled: loopEnabled, loopType: loopType });
+    loopEnabled: loopEnabled, loopType: loopType };
+}
+
+function saveCurrentPattern() {
+  var nameInp = document.getElementById('patSaveName');
+  var name = nameInp.value.trim();
+  var pats = getSavedPatterns();
+  var loaded = (loadedPatIdx >= 0 && loadedPatIdx < pats.length) ? pats[loadedPatIdx] : null;
+
+  // If a stock pattern is loaded and the name field is empty (or matches the
+  // loaded name), prompt: overwrite the stock or save as a new user pattern.
+  if (loaded && (name === '' || name === loaded.name)) {
+    showSaveDialog(loaded);
+    return;
+  }
+  if (!name) { nameInp.focus(); return; }
+  // Save-as-new with the entered name
+  var payload = buildPatPayload(name);
+  pats.unshift(payload);
   setSavedPatterns(pats);
-  document.getElementById('patSaveName').value = '';
+  loadedPatIdx = 0; // newly saved entry is at the top
+  nameInp.value = '';
   renderPatList();
+}
+
+function showSaveDialog(loaded) {
+  var dlg = document.getElementById('saveDlg');
+  var bg = document.getElementById('saveDlgBg');
+  document.getElementById('saveDlgTitle').textContent = 'Save "' + loaded.name + '"';
+  document.getElementById('saveDlgMsg').textContent = loaded.stock
+    ? 'This is a built-in pattern. Overwrite it, or save your edits as a new pattern?'
+    : 'Overwrite this saved pattern, or save a new copy?';
+  var ovBtn = document.getElementById('saveDlgOv');
+  ovBtn.textContent = loaded.stock ? 'Overwrite stock' : 'Overwrite';
+  dlg.classList.add('show');
+  bg.classList.add('show');
+}
+function hideSaveDialog() {
+  document.getElementById('saveDlg').classList.remove('show');
+  document.getElementById('saveDlgBg').classList.remove('show');
+}
+function saveDlgOverwrite() {
+  var pats = getSavedPatterns();
+  if (loadedPatIdx < 0 || loadedPatIdx >= pats.length) { hideSaveDialog(); return; }
+  var existing = pats[loadedPatIdx];
+  var payload = buildPatPayload(existing.name);
+  // Preserve stock markers so "Restore stock" can still re-sync this slot
+  if (existing.stock) { payload.stock = true; payload.stockKey = existing.stockKey; }
+  pats[loadedPatIdx] = payload;
+  setSavedPatterns(pats);
+  hideSaveDialog();
+  renderPatList();
+}
+function saveDlgSaveAsNew() {
+  hideSaveDialog();
+  // Prompt for a new name via the input field
+  var nameInp = document.getElementById('patSaveName');
+  nameInp.focus();
+  // If empty, suggest "<Original Name> (copy)"
+  if (!nameInp.value.trim()) {
+    var pats = getSavedPatterns();
+    if (loadedPatIdx >= 0 && loadedPatIdx < pats.length) {
+      nameInp.value = pats[loadedPatIdx].name + ' (copy)';
+      nameInp.select();
+    }
+  }
 }
 
 function loadPattern(idx) {
   var pats = getSavedPatterns();
   if (!pats[idx]) return;
   var p = pats[idx];
+  loadedPatIdx = idx;
   tsTop = p.tsTop; tsBot = p.tsBot;
   measures = p.measures;
   // Restore BPM
@@ -791,6 +990,9 @@ function deletePattern(idx, ev) {
   var pats = getSavedPatterns();
   pats.splice(idx, 1);
   setSavedPatterns(pats);
+  // Keep loadedPatIdx pointing at the right entry after deletion
+  if (loadedPatIdx === idx) loadedPatIdx = -1;
+  else if (loadedPatIdx > idx) loadedPatIdx--;
   renderPatList();
 }
 
@@ -803,8 +1005,13 @@ function escHtml(s) {
 function renderPatList() {
   var pats = getSavedPatterns();
   var el = document.getElementById('patList');
+  // Show "Restore stock" link if any stock patterns are missing/modified
+  var hasStock = STOCK_PATTERNS.length > 0;
+  var restoreBtn = hasStock
+    ? '<div class="pat-list-restore" onclick="restoreStockPatterns()">Restore built-in patterns</div>'
+    : '';
   if (!pats.length) {
-    el.innerHTML = '<div class="pat-sheet-empty">No saved patterns yet</div>';
+    el.innerHTML = '<div class="pat-sheet-empty">No saved patterns yet</div>' + restoreBtn;
     return;
   }
   var html = '';
@@ -813,11 +1020,12 @@ function renderPatList() {
     var ts = (p.tsTop || 4) + '/' + (p.tsBot || 4);
     var bpmStr = p.bpm ? p.bpm + ' BPM' : '';
     var meta = [ts, bars + ' bar' + (bars !== 1 ? 's' : ''), bpmStr].filter(Boolean).join(' \u00b7 ');
-    html += '<div class="pat-list-item" onclick="loadPattern('+i+')">' +
-      '<div><div class="pat-list-name">'+escHtml(p.name)+'</div><div class="pat-list-meta">'+escHtml(meta)+'</div></div>' +
+    var badge = p.stock ? '<span class="pat-stock-badge" title="Built-in pattern">STOCK</span>' : '';
+    html += '<div class="pat-list-item' + (p.stock ? ' stock' : '') + '" onclick="loadPattern('+i+')">' +
+      '<div style="flex:1;min-width:0"><div class="pat-list-name">'+escHtml(p.name)+badge+'</div><div class="pat-list-meta">'+escHtml(meta)+'</div></div>' +
       '<div class="pat-list-del" onclick="deletePattern('+i+',event)">&times;</div></div>';
   });
-  el.innerHTML = html;
+  el.innerHTML = html + restoreBtn;
 }
 
 function addMeasure() { measures.push(defaultMeasure()); renderPat(); if (isPlaying) restartMetro(); }
@@ -1119,6 +1327,47 @@ function playPercShaker(t, vol) {
   ns.start(t); ns.stop(t + 0.04);
 }
 
+// Hand clap: a quick triple-burst of filtered noise, wider than a snare
+function playPercClap(t, vol) {
+  function burst(tt, amp) {
+    var ns = audioCtx.createBufferSource();
+    var f = audioCtx.createBiquadFilter();
+    var g = audioCtx.createGain();
+    ns.buffer = getNoiseBuffer();
+    f.type = 'bandpass'; f.frequency.value = 1500; f.Q.value = 1.2;
+    ns.connect(f); f.connect(g); g.connect(masterGain);
+    g.gain.setValueAtTime(amp * vol, tt);
+    g.gain.exponentialRampToValueAtTime(0.001, tt + 0.04);
+    ns.start(tt); ns.stop(tt + 0.05);
+  }
+  burst(t,        0.55);
+  burst(t+0.012,  0.65);
+  burst(t+0.022,  0.6);
+  // Tail for fullness
+  var nt = audioCtx.createBufferSource();
+  var tf = audioCtx.createBiquadFilter();
+  var tg = audioCtx.createGain();
+  nt.buffer = getNoiseBuffer();
+  tf.type = 'bandpass'; tf.frequency.value = 1200; tf.Q.value = 0.8;
+  nt.connect(tf); tf.connect(tg); tg.connect(masterGain);
+  tg.gain.setValueAtTime(0.35 * vol, t + 0.024);
+  tg.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+  nt.start(t + 0.024); nt.stop(t + 0.14);
+}
+
+// Finger snap: short high-passed crack
+function playPercSnap(t, vol) {
+  var ns = audioCtx.createBufferSource();
+  var f = audioCtx.createBiquadFilter();
+  var g = audioCtx.createGain();
+  ns.buffer = getNoiseBuffer();
+  f.type = 'highpass'; f.frequency.value = 3500;
+  ns.connect(f); f.connect(g); g.connect(masterGain);
+  g.gain.setValueAtTime(0.5 * vol, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
+  ns.start(t); ns.stop(t + 0.04);
+}
+
 function playPercTom(t, vol, pitch) {
   var o = audioCtx.createOscillator(), g = audioCtx.createGain();
   o.connect(g); g.connect(masterGain);
@@ -1156,6 +1405,9 @@ var PERC_SOUNDS = {
   shaker: function(t,v) { playPercShaker(t,v); },
   tomL: function(t,v) { playPercTom(t,v,80); },
   tomH: function(t,v) { playPercTom(t,v,160); },
+  tomM: function(t,v) { playPercTom(t,v,120); },
+  clap: function(t,v) { playPercClap(t,v); },
+  snap: function(t,v) { playPercSnap(t,v); },
   bassR: function(t,v) { playPercBass(t,v,131); }, // C3 — tumbao root
   bassU: function(t,v) { playPercBass(t,v,175); }, // F3 — fourth above root (bar 1 ponche)
   bassD: function(t,v) { playPercBass(t,v,87);  }  // F2 — fifth below root (bar 2 ponche)
@@ -1234,6 +1486,287 @@ var PERC_LOOPS = {
     // Bar 2: root (C3) on and-of-2, fifth-down (F2) on beat 4
     {tick:132, s:'bassR', v:1},
     {tick:168, s:'bassD', v:0.95}
+  ]},
+
+  /* ═══════════════ Modern drum-kit loops ═══════════════ */
+
+  // Kaytranada-style R&B: kick on 1 and "a of 2", snare on 2 & 4, offbeat 8th hats with a cheeky open
+  'rnb-modern': { name: 'R&B Modern', bars: 2, events: [
+    // Bar 1
+    {tick:0,   s:'kick', v:1}, {tick:42,  s:'kick', v:0.8}, {tick:60, s:'kick', v:0.7},
+    {tick:24,  s:'snare', v:1}, {tick:72,  s:'snare', v:1},
+    // Hats: 8ths with off-beat emphasis + open on "a of 4"
+    {tick:0,  s:'hat', v:0.5}, {tick:12, s:'hat', v:0.7},
+    {tick:24, s:'hat', v:0.5}, {tick:36, s:'hat', v:0.7},
+    {tick:48, s:'hat', v:0.5}, {tick:60, s:'hat', v:0.7},
+    {tick:72, s:'hat', v:0.5}, {tick:84, s:'ohat', v:0.7},
+    // Bar 2 — variation with kick on "and" of 3
+    {tick:96,  s:'kick', v:1}, {tick:138, s:'kick', v:0.8}, {tick:144, s:'kick', v:0.75},
+    {tick:120, s:'snare', v:1}, {tick:168, s:'snare', v:1},
+    {tick:96,  s:'hat', v:0.5}, {tick:108, s:'hat', v:0.7},
+    {tick:120, s:'hat', v:0.5}, {tick:132, s:'hat', v:0.7},
+    {tick:144, s:'hat', v:0.5}, {tick:156, s:'hat', v:0.7},
+    {tick:168, s:'hat', v:0.5}, {tick:180, s:'ohat', v:0.7}
+  ]},
+
+  // Trap: sparse 808 kick, snare on 2 & 4, 16th hats with double-time feel on beat 4 bar 2
+  'trap': { name: 'Trap 2-Bar', bars: 2, events: [
+    // Kick
+    {tick:0,   s:'kick', v:1}, {tick:42,  s:'kick', v:0.85},
+    {tick:96,  s:'kick', v:1}, {tick:126, s:'kick', v:0.8}, {tick:150, s:'kick', v:0.75},
+    // Snare/clap on 2 & 4
+    {tick:24,  s:'snare', v:1}, {tick:72,  s:'snare', v:1},
+    {tick:120, s:'snare', v:1}, {tick:168, s:'snare', v:1},
+    // Hats: straight 16ths bar 1, "roll" (triplet 16ths on beat 4) bar 2
+    {tick:0,  s:'hat', v:0.6}, {tick:6,  s:'hat', v:0.35}, {tick:12, s:'hat', v:0.5}, {tick:18, s:'hat', v:0.35},
+    {tick:24, s:'hat', v:0.5}, {tick:30, s:'hat', v:0.35}, {tick:36, s:'hat', v:0.5}, {tick:42, s:'hat', v:0.35},
+    {tick:48, s:'hat', v:0.6}, {tick:54, s:'hat', v:0.35}, {tick:60, s:'hat', v:0.5}, {tick:66, s:'hat', v:0.35},
+    {tick:72, s:'hat', v:0.5}, {tick:78, s:'hat', v:0.35}, {tick:84, s:'hat', v:0.5}, {tick:90, s:'hat', v:0.35},
+    {tick:96,  s:'hat', v:0.6}, {tick:102, s:'hat', v:0.35}, {tick:108, s:'hat', v:0.5}, {tick:114, s:'hat', v:0.35},
+    {tick:120, s:'hat', v:0.5}, {tick:126, s:'hat', v:0.35}, {tick:132, s:'hat', v:0.5}, {tick:138, s:'hat', v:0.35},
+    {tick:144, s:'hat', v:0.6}, {tick:150, s:'hat', v:0.35}, {tick:156, s:'hat', v:0.5}, {tick:162, s:'hat', v:0.35},
+    // Beat 4 bar 2: 8th-triplet roll (3 hats across one beat = ticks 168, 176, 184)
+    {tick:168, s:'hat', v:0.55}, {tick:176, s:'hat', v:0.5}, {tick:184, s:'hat', v:0.55}
+  ]},
+
+  // Boom-bap: quintessential 90s hip-hop. Kick 1 & 3, snare 2 & 4, 8th hats with accent on the "&"
+  'boom-bap': { name: 'Boom-Bap', bars: 1, events: [
+    {tick:0, s:'kick', v:1}, {tick:48, s:'kick', v:0.95},
+    {tick:24, s:'snare', v:1}, {tick:72, s:'snare', v:1},
+    {tick:0,  s:'hat', v:0.55}, {tick:12, s:'hat', v:0.7},
+    {tick:24, s:'hat', v:0.55}, {tick:36, s:'hat', v:0.7},
+    {tick:48, s:'hat', v:0.55}, {tick:60, s:'hat', v:0.7},
+    {tick:72, s:'hat', v:0.55}, {tick:84, s:'hat', v:0.7}
+  ]},
+
+  // Neo-soul half-time: snare falls on beat 3 only (half-time). Laid back but on-grid.
+  'neo-soul': { name: 'Neo-Soul Half-Time', bars: 2, events: [
+    // Bar 1
+    {tick:0,  s:'kick', v:1}, {tick:36, s:'kick', v:0.8}, {tick:60, s:'kick', v:0.75},
+    {tick:48, s:'snare', v:1},
+    // Ghost snare on "e" of 4
+    {tick:78, s:'snare', v:0.35},
+    // 16th hats
+    {tick:0,  s:'hat', v:0.55}, {tick:6,  s:'hat', v:0.3}, {tick:12, s:'hat', v:0.45}, {tick:18, s:'hat', v:0.3},
+    {tick:24, s:'hat', v:0.5},  {tick:30, s:'hat', v:0.3}, {tick:36, s:'hat', v:0.45}, {tick:42, s:'hat', v:0.3},
+    {tick:48, s:'hat', v:0.55}, {tick:54, s:'hat', v:0.3}, {tick:60, s:'hat', v:0.45}, {tick:66, s:'hat', v:0.3},
+    {tick:72, s:'hat', v:0.5},  {tick:78, s:'hat', v:0.3}, {tick:84, s:'hat', v:0.45}, {tick:90, s:'hat', v:0.3},
+    // Bar 2 — variation: kick on "a of 3"
+    {tick:96, s:'kick', v:1}, {tick:132, s:'kick', v:0.8}, {tick:162, s:'kick', v:0.75},
+    {tick:144, s:'snare', v:1},
+    {tick:96,  s:'hat', v:0.55}, {tick:102, s:'hat', v:0.3}, {tick:108, s:'hat', v:0.45}, {tick:114, s:'hat', v:0.3},
+    {tick:120, s:'hat', v:0.5},  {tick:126, s:'hat', v:0.3}, {tick:132, s:'hat', v:0.45}, {tick:138, s:'hat', v:0.3},
+    {tick:144, s:'hat', v:0.55}, {tick:150, s:'hat', v:0.3}, {tick:156, s:'hat', v:0.45}, {tick:162, s:'hat', v:0.3},
+    {tick:168, s:'hat', v:0.5},  {tick:174, s:'hat', v:0.3}, {tick:180, s:'ohat', v:0.55}, {tick:186, s:'hat', v:0.3}
+  ]},
+
+  // Reggaeton/dembow: kick on 1 & 3, rim on "a of 2" & "a of 4" (dembow figure)
+  'dembow': { name: 'Reggaeton Dembow', bars: 1, events: [
+    {tick:0, s:'kick', v:1}, {tick:48, s:'kick', v:1},
+    {tick:24, s:'snare', v:0.9},
+    {tick:18, s:'rim', v:0.8}, {tick:42, s:'rim', v:0.8}, {tick:66, s:'rim', v:0.8}, {tick:90, s:'rim', v:0.8},
+    // Shaker to add movement
+    {tick:12, s:'shaker', v:0.4}, {tick:36, s:'shaker', v:0.4}, {tick:60, s:'shaker', v:0.4}, {tick:84, s:'shaker', v:0.4}
+  ]},
+
+  // Afrobeat 2-bar: kick pattern + shaker 16ths + toms polyrhythm
+  'afrobeat': { name: 'Afrobeat', bars: 2, events: [
+    {tick:0, s:'kick', v:1}, {tick:36, s:'kick', v:0.85}, {tick:72, s:'kick', v:0.85},
+    {tick:24, s:'snare', v:0.9}, {tick:72, s:'rim', v:0.7},
+    {tick:96, s:'kick', v:1}, {tick:132, s:'kick', v:0.85}, {tick:168, s:'kick', v:0.85},
+    {tick:120, s:'snare', v:0.9}, {tick:168, s:'rim', v:0.7},
+    // Shaker 16ths (light)
+    {tick:0,   s:'shaker', v:0.55}, {tick:6,   s:'shaker', v:0.3}, {tick:12,  s:'shaker', v:0.4}, {tick:18,  s:'shaker', v:0.3},
+    {tick:24,  s:'shaker', v:0.5},  {tick:30,  s:'shaker', v:0.3}, {tick:36,  s:'shaker', v:0.4}, {tick:42,  s:'shaker', v:0.3},
+    {tick:48,  s:'shaker', v:0.55}, {tick:54,  s:'shaker', v:0.3}, {tick:60,  s:'shaker', v:0.4}, {tick:66,  s:'shaker', v:0.3},
+    {tick:72,  s:'shaker', v:0.5},  {tick:78,  s:'shaker', v:0.3}, {tick:84,  s:'shaker', v:0.4}, {tick:90,  s:'shaker', v:0.3},
+    {tick:96,  s:'shaker', v:0.55}, {tick:102, s:'shaker', v:0.3}, {tick:108, s:'shaker', v:0.4}, {tick:114, s:'shaker', v:0.3},
+    {tick:120, s:'shaker', v:0.5},  {tick:126, s:'shaker', v:0.3}, {tick:132, s:'shaker', v:0.4}, {tick:138, s:'shaker', v:0.3},
+    {tick:144, s:'shaker', v:0.55}, {tick:150, s:'shaker', v:0.3}, {tick:156, s:'shaker', v:0.4}, {tick:162, s:'shaker', v:0.3},
+    {tick:168, s:'shaker', v:0.5},  {tick:174, s:'shaker', v:0.3}, {tick:180, s:'shaker', v:0.4}, {tick:186, s:'shaker', v:0.3}
+  ]},
+
+  // House 4-on-the-floor: kick every beat, clap on 2 & 4, offbeat hats
+  'house-4onfloor': { name: 'House 4-on-Floor', bars: 1, events: [
+    {tick:0,  s:'kick', v:1}, {tick:24, s:'kick', v:1}, {tick:48, s:'kick', v:1}, {tick:72, s:'kick', v:1},
+    {tick:24, s:'clap', v:0.9}, {tick:72, s:'clap', v:0.9},
+    // Offbeat hats (the "+" of every beat)
+    {tick:12, s:'hat', v:0.7}, {tick:36, s:'hat', v:0.7}, {tick:60, s:'hat', v:0.7}, {tick:84, s:'hat', v:0.7}
+  ]},
+
+  // 2-step garage: syncopated kick/snare, open hat on "+" of 3
+  'two-step': { name: '2-Step Garage', bars: 1, events: [
+    {tick:0, s:'kick', v:1}, {tick:42, s:'kick', v:0.85}, {tick:60, s:'kick', v:0.9},
+    {tick:24, s:'snare', v:1}, {tick:78, s:'snare', v:1},
+    // Hats: 8ths with open on "+" of 3
+    {tick:0,  s:'hat', v:0.55}, {tick:12, s:'hat', v:0.4},
+    {tick:24, s:'hat', v:0.55}, {tick:36, s:'hat', v:0.4},
+    {tick:48, s:'hat', v:0.55}, {tick:60, s:'ohat', v:0.7},
+    {tick:72, s:'hat', v:0.55}, {tick:84, s:'hat', v:0.4}
+  ]},
+
+  // UK drill half-time: spacious kick + snare on 3, driving hats with triplet roll on last beat
+  'drill': { name: 'UK Drill', bars: 2, events: [
+    {tick:0, s:'kick', v:1}, {tick:30, s:'kick', v:0.8}, {tick:60, s:'kick', v:0.85},
+    {tick:48, s:'snare', v:1},
+    {tick:96, s:'kick', v:1}, {tick:126, s:'kick', v:0.8},
+    {tick:144, s:'snare', v:1},
+    // Hats: 16ths bar 1
+    {tick:0, s:'hat', v:0.55}, {tick:6, s:'hat', v:0.35}, {tick:12, s:'hat', v:0.5}, {tick:18, s:'hat', v:0.35},
+    {tick:24, s:'hat', v:0.55}, {tick:30, s:'hat', v:0.35}, {tick:36, s:'hat', v:0.5}, {tick:42, s:'hat', v:0.35},
+    {tick:48, s:'hat', v:0.55}, {tick:54, s:'hat', v:0.35}, {tick:60, s:'hat', v:0.5}, {tick:66, s:'hat', v:0.35},
+    {tick:72, s:'hat', v:0.55}, {tick:78, s:'hat', v:0.35}, {tick:84, s:'hat', v:0.5}, {tick:90, s:'hat', v:0.35},
+    // Hats bar 2 with triplet roll on beat 4
+    {tick:96, s:'hat', v:0.55}, {tick:102, s:'hat', v:0.35}, {tick:108, s:'hat', v:0.5}, {tick:114, s:'hat', v:0.35},
+    {tick:120, s:'hat', v:0.55}, {tick:126, s:'hat', v:0.35}, {tick:132, s:'hat', v:0.5}, {tick:138, s:'hat', v:0.35},
+    {tick:144, s:'hat', v:0.55}, {tick:150, s:'hat', v:0.35}, {tick:156, s:'hat', v:0.5}, {tick:162, s:'hat', v:0.35},
+    // Triplet roll (3 hats per beat) on beat 4 of bar 2
+    {tick:168, s:'hat', v:0.55}, {tick:176, s:'hat', v:0.45}, {tick:184, s:'hat', v:0.55}
+  ]},
+
+  /* ═══════════════ Percussion-only background loops ═══════════════ */
+
+  // Conga tumbao (hand pattern): open tones on 4 & "+4", slap on "+2"
+  'conga-tumbao': { name: 'Conga Tumbao', bars: 2, events: [
+    // Bar 1
+    {tick:36, s:'tomH', v:0.8},  // slap on "+2"
+    {tick:72, s:'tomL', v:1.0},  // open on 4
+    {tick:84, s:'tomL', v:0.9},  // open on "+4"
+    // Bar 2
+    {tick:132, s:'tomH', v:0.8},
+    {tick:168, s:'tomL', v:1.0},
+    {tick:180, s:'tomL', v:0.9}
+  ]},
+
+  // Cáscara: timbale stick-on-shell Afro-Cuban pattern (2 bars, 16th grid)
+  'cascara': { name: 'Cáscara', bars: 2, events: [
+    // Bar 1 — 1, 2, a of 2, 3, a of 3, +, 4
+    {tick:0,   s:'rim', v:0.9},
+    {tick:24,  s:'rim', v:0.8}, {tick:42,  s:'rim', v:0.75},
+    {tick:48,  s:'rim', v:0.85}, {tick:66,  s:'rim', v:0.75},
+    {tick:72,  s:'rim', v:0.8}, {tick:90,  s:'rim', v:0.75},
+    // Bar 2
+    {tick:96,  s:'rim', v:0.9},
+    {tick:120, s:'rim', v:0.8}, {tick:138, s:'rim', v:0.75},
+    {tick:144, s:'rim', v:0.85}, {tick:162, s:'rim', v:0.75},
+    {tick:168, s:'rim', v:0.8}, {tick:186, s:'rim', v:0.75}
+  ]},
+
+  // Mambo cowbell (the classic 2-side pattern)
+  'cowbell-mambo': { name: 'Cowbell Mambo', bars: 2, events: [
+    // Bar 1: 1, +2, 3, +4
+    {tick:0, s:'cowbell', v:1}, {tick:36, s:'cowbell', v:0.8}, {tick:48, s:'cowbell', v:0.95}, {tick:84, s:'cowbell', v:0.8},
+    // Bar 2 — same
+    {tick:96, s:'cowbell', v:1}, {tick:132, s:'cowbell', v:0.8}, {tick:144, s:'cowbell', v:0.95}, {tick:180, s:'cowbell', v:0.8}
+  ]},
+
+  // Simple shaker + conga background: great complementary feel
+  'shaker-conga': { name: 'Shaker + Conga', bars: 2, events: [
+    // Shaker 8ths bar 1
+    {tick:0,  s:'shaker', v:0.55}, {tick:12, s:'shaker', v:0.35},
+    {tick:24, s:'shaker', v:0.55}, {tick:36, s:'shaker', v:0.35},
+    {tick:48, s:'shaker', v:0.55}, {tick:60, s:'shaker', v:0.35},
+    {tick:72, s:'shaker', v:0.55}, {tick:84, s:'shaker', v:0.35},
+    // Congas bar 1: open on 4 + "+4"
+    {tick:72, s:'tomL', v:0.85}, {tick:84, s:'tomL', v:0.7},
+    // Shaker bar 2
+    {tick:96,  s:'shaker', v:0.55}, {tick:108, s:'shaker', v:0.35},
+    {tick:120, s:'shaker', v:0.55}, {tick:132, s:'shaker', v:0.35},
+    {tick:144, s:'shaker', v:0.55}, {tick:156, s:'shaker', v:0.35},
+    {tick:168, s:'shaker', v:0.55}, {tick:180, s:'shaker', v:0.35},
+    // Congas bar 2: slap on "+2" + open on 4
+    {tick:132, s:'tomH', v:0.75}, {tick:168, s:'tomL', v:0.85}
+  ]},
+
+  // Songo (Cuban fusion 2-bar): snare/rim interplay with kick tumbao
+  'songo': { name: 'Songo', bars: 2, events: [
+    // Bar 1
+    {tick:0,  s:'kick', v:1}, {tick:60, s:'kick', v:0.9}, {tick:72, s:'kick', v:0.85},
+    {tick:36, s:'rim', v:0.85},
+    {tick:72, s:'snare', v:0.7},
+    // Bar 2
+    {tick:96,  s:'kick', v:1}, {tick:156, s:'kick', v:0.9}, {tick:168, s:'kick', v:0.85},
+    {tick:120, s:'snare', v:0.9},
+    {tick:132, s:'rim', v:0.85},
+    // Shaker glue (8ths)
+    {tick:0,  s:'shaker', v:0.4}, {tick:12, s:'shaker', v:0.25},
+    {tick:24, s:'shaker', v:0.4}, {tick:36, s:'shaker', v:0.25},
+    {tick:48, s:'shaker', v:0.4}, {tick:60, s:'shaker', v:0.25},
+    {tick:72, s:'shaker', v:0.4}, {tick:84, s:'shaker', v:0.25},
+    {tick:96,  s:'shaker', v:0.4}, {tick:108, s:'shaker', v:0.25},
+    {tick:120, s:'shaker', v:0.4}, {tick:132, s:'shaker', v:0.25},
+    {tick:144, s:'shaker', v:0.4}, {tick:156, s:'shaker', v:0.25},
+    {tick:168, s:'shaker', v:0.4}, {tick:180, s:'shaker', v:0.25}
+  ]},
+
+  // Samba surdo: low tom accent on beat 2 & 4 with 16th shaker
+  'samba': { name: 'Samba', bars: 1, events: [
+    // Surdo (low tom): accent on 2 & 4
+    {tick:24, s:'tomL', v:1}, {tick:72, s:'tomL', v:1},
+    // Ghost kick on 1 & 3
+    {tick:0,  s:'kick', v:0.55}, {tick:48, s:'kick', v:0.55},
+    // Agogo-ish rim pattern (bossa-leaning)
+    {tick:36, s:'rim', v:0.7}, {tick:60, s:'rim', v:0.6}, {tick:84, s:'rim', v:0.7},
+    // 16th shaker
+    {tick:0,  s:'shaker', v:0.5}, {tick:6,  s:'shaker', v:0.3}, {tick:12, s:'shaker', v:0.4}, {tick:18, s:'shaker', v:0.3},
+    {tick:24, s:'shaker', v:0.5}, {tick:30, s:'shaker', v:0.3}, {tick:36, s:'shaker', v:0.4}, {tick:42, s:'shaker', v:0.3},
+    {tick:48, s:'shaker', v:0.5}, {tick:54, s:'shaker', v:0.3}, {tick:60, s:'shaker', v:0.4}, {tick:66, s:'shaker', v:0.3},
+    {tick:72, s:'shaker', v:0.5}, {tick:78, s:'shaker', v:0.3}, {tick:84, s:'shaker', v:0.4}, {tick:90, s:'shaker', v:0.3}
+  ]},
+
+  // Funk 16ths: James Brown influenced — ghost notes everywhere
+  'funk-16': { name: 'Funk 16ths', bars: 2, events: [
+    {tick:0, s:'kick', v:1}, {tick:42, s:'kick', v:0.9}, {tick:60, s:'kick', v:0.85},
+    {tick:24, s:'snare', v:1}, {tick:72, s:'snare', v:1},
+    // Ghost snares
+    {tick:30, s:'snare', v:0.3}, {tick:54, s:'snare', v:0.3},
+    // Bar 2
+    {tick:96, s:'kick', v:1}, {tick:132, s:'kick', v:0.9}, {tick:138, s:'kick', v:0.85}, {tick:156, s:'kick', v:0.85},
+    {tick:120, s:'snare', v:1}, {tick:168, s:'snare', v:1},
+    {tick:126, s:'snare', v:0.3}, {tick:150, s:'snare', v:0.3}, {tick:186, s:'snare', v:0.3},
+    // 16th hats with accent on each beat
+    {tick:0, s:'hat', v:0.6}, {tick:6, s:'hat', v:0.3}, {tick:12, s:'hat', v:0.45}, {tick:18, s:'hat', v:0.3},
+    {tick:24, s:'hat', v:0.55}, {tick:30, s:'hat', v:0.3}, {tick:36, s:'hat', v:0.45}, {tick:42, s:'hat', v:0.3},
+    {tick:48, s:'hat', v:0.6}, {tick:54, s:'hat', v:0.3}, {tick:60, s:'hat', v:0.45}, {tick:66, s:'hat', v:0.3},
+    {tick:72, s:'hat', v:0.55}, {tick:78, s:'hat', v:0.3}, {tick:84, s:'hat', v:0.45}, {tick:90, s:'hat', v:0.3},
+    {tick:96, s:'hat', v:0.6}, {tick:102, s:'hat', v:0.3}, {tick:108, s:'hat', v:0.45}, {tick:114, s:'hat', v:0.3},
+    {tick:120, s:'hat', v:0.55}, {tick:126, s:'hat', v:0.3}, {tick:132, s:'hat', v:0.45}, {tick:138, s:'hat', v:0.3},
+    {tick:144, s:'hat', v:0.6}, {tick:150, s:'hat', v:0.3}, {tick:156, s:'hat', v:0.45}, {tick:162, s:'hat', v:0.3},
+    {tick:168, s:'ohat', v:0.6}, {tick:174, s:'hat', v:0.3}, {tick:180, s:'hat', v:0.45}, {tick:186, s:'hat', v:0.3}
+  ]},
+
+  // Drum & Bass / Amen-ish at half-feel: keeps it steady at sensible BPM
+  'dnb': { name: 'Drum & Bass', bars: 1, events: [
+    {tick:0, s:'kick', v:1}, {tick:48, s:'kick', v:0.85}, {tick:60, s:'kick', v:0.8},
+    {tick:24, s:'snare', v:1}, {tick:72, s:'snare', v:1},
+    // Ride-like 8th hats
+    {tick:0, s:'hat', v:0.55}, {tick:12, s:'hat', v:0.4}, {tick:24, s:'hat', v:0.55}, {tick:36, s:'hat', v:0.4},
+    {tick:48, s:'hat', v:0.55}, {tick:60, s:'hat', v:0.4}, {tick:72, s:'hat', v:0.55}, {tick:84, s:'hat', v:0.4}
+  ]},
+
+  // Snap + shaker minimalism — very "vibe" for practice over
+  'snap-groove': { name: 'Snap Groove', bars: 1, events: [
+    {tick:24, s:'snap', v:1}, {tick:72, s:'snap', v:1},
+    // 8th shaker
+    {tick:0, s:'shaker', v:0.55}, {tick:12, s:'shaker', v:0.35},
+    {tick:24, s:'shaker', v:0.5}, {tick:36, s:'shaker', v:0.35},
+    {tick:48, s:'shaker', v:0.5}, {tick:60, s:'shaker', v:0.35},
+    {tick:72, s:'shaker', v:0.5}, {tick:84, s:'shaker', v:0.35},
+    // Soft ghost kick on 1 & 3
+    {tick:0, s:'kick', v:0.5}, {tick:48, s:'kick', v:0.5}
+  ]},
+
+  // Rumba guaguancó (tumbadoras 2-bar pattern) — all toms
+  'guaguanco': { name: 'Rumba Guaguancó', bars: 2, events: [
+    // Bar 1
+    {tick:0,  s:'tomL', v:0.85},
+    {tick:18, s:'tomH', v:0.75},
+    {tick:36, s:'tomL', v:0.85}, {tick:54, s:'tomH', v:0.75},
+    {tick:72, s:'tomL', v:0.9},  {tick:84, s:'tomL', v:0.8},
+    // Bar 2
+    {tick:120, s:'tomH', v:0.8},
+    {tick:144, s:'tomL', v:0.9}, {tick:162, s:'tomH', v:0.75},
+    {tick:168, s:'tomL', v:0.9}, {tick:180, s:'tomL', v:0.8}
   ]}
 };
 
@@ -2295,33 +2828,56 @@ function doRandomize() {
 
 function randomMeasure() {
   var cap = measCap(), m = [], rem = cap;
+  var beatTicks = Math.round(96 / tsBot); // ticks per denominator-beat
   var maxIter = 200;
   while (rem > 0 && maxIter-- > 0) {
-    // Chance of triplet group
-    if (rem >= 48 && Math.random() < 0.08) {
-      // Quarter triplet group: 3 notes x 16 ticks = 48
-      m.push({t:'qt',dur:16},{t:'qt',dur:16},{t:'qt',dur:16});
-      rem -= 48;
-      continue;
-    }
-    if (rem >= 24 && Math.random() < 0.1) {
-      // Eighth triplet group: 3 notes x 8 ticks = 24
-      m.push({t:'et',dur:8},{t:'et',dur:8},{t:'et',dur:8});
-      rem -= 24;
-      continue;
+    var pos = cap - rem;                  // position within bar so far
+    var onBeat = (pos % beatTicks) === 0; // beat-aligned?
+
+    // Triplets: only insert when position is beat-aligned, otherwise they
+    // start on e.g. the second 16th and feel unmusical. Bias toward
+    // on-beat slots so groups cleanly fit between beats.
+    if (onBeat) {
+      if (rem >= 48 && beatTicks >= 24 && Math.random() < 0.10) {
+        // Quarter triplet group: 3 × 16 ticks = 48 (spans 2 quarters)
+        m.push({t:'qt',dur:16},{t:'qt',dur:16},{t:'qt',dur:16});
+        rem -= 48;
+        continue;
+      }
+      if (rem >= 24 && beatTicks >= 24 && Math.random() < 0.14) {
+        // Eighth triplet group: 3 × 8 ticks = 24 (spans 1 quarter)
+        m.push({t:'et',dur:8},{t:'et',dur:8},{t:'et',dur:8});
+        rem -= 24;
+        continue;
+      }
     }
 
-    // Normal notes/rests
+    // Normal notes/rests. 32nds intentionally excluded — too dense for
+    // random patterns, turns musical rhythms into chattery noise.
     var pool = [];
     var allTypes = [
-      {t:'w',d:96,wt:1}, {t:'h',d:48,wt:3}, {t:'q',d:24,wt:5}, {t:'e',d:12,wt:5},
-      {t:'s',d:6,wt:2}, {t:'t',d:3,wt:1},
-      {t:'wr',d:96,wt:0.3}, {t:'hr',d:48,wt:0.8}, {t:'qr',d:24,wt:1.5}, {t:'er',d:12,wt:1.5},
-      {t:'sr',d:6,wt:0.5}, {t:'tr',d:3,wt:0.2}
+      {t:'w',  d:96, wt:1},
+      {t:'h',  d:48, wt:3},
+      {t:'q',  d:24, wt:6},
+      {t:'e',  d:12, wt:6},
+      {t:'s',  d:6,  wt:2.5},
+      {t:'wr', d:96, wt:0.3},
+      {t:'hr', d:48, wt:0.8},
+      {t:'qr', d:24, wt:1.5},
+      {t:'er', d:12, wt:1.5},
+      {t:'sr', d:6,  wt:0.4}
     ];
     for (var i = 0; i < allTypes.length; i++) {
-      if (bpm > 100 && (allTypes[i].t === 't' || allTypes[i].t === 'tr')) continue;
-      if (allTypes[i].d <= rem) pool.push(allTypes[i]);
+      if (allTypes[i].d > rem) continue;
+      // Prefer notes/rests that don't straddle a beat line — keeps rhythm legible
+      var d = allTypes[i].d;
+      var endsAtBeat = ((pos + d) % beatTicks) === 0;
+      var withinBeat = (pos % beatTicks) + d <= beatTicks;
+      var w = allTypes[i].wt;
+      if (!onBeat && !withinBeat) w *= 0.25; // discourage crossing a beat mid-subdivision
+      if (onBeat && d === beatTicks) w *= 1.5; // slight boost for clean beat-filling
+      if (endsAtBeat) w *= 1.15;
+      pool.push({t:allTypes[i].t, d:d, wt:w});
     }
     if (!pool.length) break;
 
@@ -3403,6 +3959,8 @@ function adjTSPop(which, d) {
   var sLoopType = localStorage.getItem('tt_loop');
   if (sLoopType && PERC_LOOPS[sLoopType]) loopType = sLoopType;
   loopSelEl.value = loopType;
+  // Seed stock patterns into the user's saved-patterns list on first run.
+  installStockPatterns();
   buildPat();
   // Re-pack rows on resize so pattern never overflows
   var _resizeTimer = null;
