@@ -234,7 +234,20 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .settings-popover.show { transform:translateY(0); }
 .settings-popover-handle { width:36px; height:4px; background:var(--border); border-radius:2px; margin:0 auto 12px; }
 .settings-popover-title { font-size:14px; font-weight:600; margin-bottom:14px; display:flex; align-items:center; justify-content:space-between; }
-.settings-popover-close { font-size:18px; color:var(--text-dim); cursor:pointer; padding:2px 6px; }
+.settings-popover-close { font-size:24px; line-height:1; color:var(--text-dim); cursor:pointer; padding:4px 10px; border-radius:6px; }
+.settings-popover-close:active { background:var(--surface2); color:var(--text); }
+.popover-sub-heading { display:flex; align-items:center; gap:6px; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-dim); margin:18px 0 8px; }
+.popover-sub-heading .help-q { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border:1px solid var(--border); border-radius:50%; font-size:11px; font-weight:600; color:var(--text-dim); cursor:pointer; line-height:1; padding-bottom:1px; }
+.popover-sub-heading .help-q:active { background:var(--surface2); color:var(--text); }
+.lat-cal-row { display:flex; align-items:stretch; gap:10px; }
+.lat-cal-input { flex:1 1 0; min-width:0; display:flex; align-items:center; gap:6px; padding:0 10px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; }
+.lat-cal-input input { flex:1 1 0; min-width:0; width:100%; font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:600; background:transparent; border:none; color:var(--text); outline:none; padding:10px 0; -moz-appearance:textfield; }
+.lat-cal-input input::-webkit-outer-spin-button, .lat-cal-input input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+.lat-cal-input:focus-within { border-color:var(--accent); }
+.lat-cal-unit { font-size:12px; color:var(--text-dim); flex-shrink:0; }
+.lat-cal-btn { flex-shrink:0; padding:0 14px; display:flex; align-items:center; justify-content:center; gap:6px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:13px; font-weight:500; cursor:pointer; white-space:nowrap; }
+.lat-cal-btn:active { background:var(--border); }
+.cal-sub-label { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-dim); margin:10px 0 4px; }
 .settings-backdrop { display:none; position:fixed; inset:0; z-index:80; background:rgba(0,0,0,0.5); }
 .settings-backdrop.show { display:block; }
 /* Saved patterns sheet */
@@ -426,14 +439,11 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
     <input type="range" class="sl-ctrl" id="volS" min="0" max="150" value="80">
     <span class="sl-label" id="volV" style="min-width:36px">80%</span>
   </div>
-  <div class="lat-row">
-    <div class="lat-wrap"><input type="number" class="lat-input" id="latIn" value="0" step="1"><span class="lat-unit">ms</span></div>
-    <div class="lat-btns">
-      <div class="lat-btn" onclick="adjLat(-5)">&#8722;5</div><div class="lat-btn" onclick="adjLat(-1)">&#8722;1</div>
-      <div class="lat-btn" onclick="adjLat(1)">+1</div><div class="lat-btn" onclick="adjLat(5)">+5</div>
-    </div>
+  <div class="popover-sub-heading">Latency <span class="help-q" onclick="openLatencyHelp()" title="What is latency?">?</span></div>
+  <div class="lat-cal-row">
+    <label class="lat-cal-input"><input type="text" id="latIn" inputmode="numeric" pattern="-?[0-9]*" autocomplete="off" value="0"><span class="lat-cal-unit">ms</span></label>
+    <div class="lat-cal-btn" onclick="startCalib()">&#9201; Calibrate</div>
   </div>
-  <div class="cal-btn" onclick="startCalib()" style="margin-top:12px">&#9201; Calibrate Latency</div>
 </div>
 
 <div class="settings-popover" id="panelHelp">
@@ -445,7 +455,7 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
       <div>This usually means your <b>audio mode</b> is wrong for how you&rsquo;re listening, or you need to <b>recalibrate</b>. Each mode (wired / speaker / Bluetooth) has its own latency — if you switch headphones or speaker output, check the mode first, then recalibrate.</div>
     </div>
 
-    <div style="color:var(--text);font-weight:600;margin:0 0 4px">Audio Mode &amp; Latency</div>
+    <div id="helpLatencyAnchor" style="color:var(--text);font-weight:600;margin:0 0 4px">Audio Mode &amp; Latency</div>
     <p style="margin:0 0 12px">The click is heard differently depending on your output. <b>Wired</b> (headphones/line-out) is near-zero latency. <b>Speaker</b> has added air travel time. <b>Bluetooth</b> adds 100&ndash;300&nbsp;ms codec delay. The app stores a separate calibration value for each mode, so switching output types works correctly — but <b>you must tell the app which mode you&rsquo;re using</b> via the speaker icon in the transport bar.</p>
 
     <div style="color:var(--text);font-weight:600;margin:0 0 4px">Calibration</div>
@@ -481,7 +491,20 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
   <div class="ov-desc" id="calDesc">Clap or hit your pad along with the clicks. The mic detects hits automatically.</div>
   <div class="cv" id="calVis"><div class="cv-lbl">Hits</div><div class="cv-cnt" id="calCnt">0</div></div>
   <div class="cm-bar"><div class="cm-fill" id="calMF"></div><div class="cm-th" id="calTh" style="position:absolute;top:0;bottom:0;width:2px;background:var(--accent);pointer-events:none"></div></div>
+  <!-- Audio source: easy to fix from here if user picked the wrong mode -->
+  <div class="cal-sub-label">Audio source</div>
+  <div class="mode-toggle" style="margin:0 0 4px">
+    <div class="mode-btn" id="calModeW" onclick="setMode('w')">Wired</div>
+    <div class="mode-btn" id="calModeS" onclick="setMode('s')">Speaker</div>
+    <div class="mode-btn" id="calModeBT" onclick="setMode('bt')">Bluetooth</div>
+  </div>
+  <!-- Tempo: slow tempo = much more accurate calibration when human-clapping -->
   <div class="sl-row" style="margin:8px 0 4px">
+    <span class="sl-label" style="color:var(--text)">Tempo</span>
+    <input type="range" class="sl-ctrl" id="calBpmS" min="40" max="160" value="80">
+    <span class="sl-label" id="calBpmV" style="min-width:48px">80 BPM</span>
+  </div>
+  <div class="sl-row" style="margin:0 0 4px">
     <span class="sl-label" style="color:var(--text)">Vol</span>
     <input type="range" class="sl-ctrl" id="calVolS" min="0" max="150" value="80">
     <span class="sl-label" id="calVolV" style="min-width:36px">80%</span>
@@ -543,6 +566,10 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
     <div class="np-act" onclick="npInsertAfter()">Insert</div>
     <div class="np-act" onclick="npToRest()">&#8594; Rest</div>
     <div class="np-act" onclick="npDelete()">Delete</div>
+  </div>
+  <div class="np-actions" style="margin-top:6px;border-top:none;padding-top:0">
+    <div class="np-act" onclick="npDeleteNeighbor(-1)" title="Delete previous note">&#9003; Prev</div>
+    <div class="np-act" onclick="npDeleteNeighbor(1)" title="Delete next note">Next &#8998;</div>
   </div>
 </div>
 
@@ -970,7 +997,11 @@ function loadPattern(idx) {
     clickVol = p.clickVol;
     document.getElementById('volS').value = clickVol;
     document.getElementById('volV').textContent = clickVol + '%';
-    localStorage.setItem('tt_vol', clickVol);
+    var calVS = document.getElementById('calVolS');
+    var calVV = document.getElementById('calVolV');
+    if (calVS) calVS.value = clickVol;
+    if (calVV) calVV.textContent = clickVol + '%';
+    saveVol();
   }
   if (p.loopType !== undefined) setLoopType(p.loopType);
   // Update time sig display
@@ -2656,6 +2687,70 @@ function npToRest() {
   if (isPlaying) restartMetro();
 }
 
+// Helper: re-pack a flat list of notes into measure-shaped buckets and replace
+// the live `measures`. Caller is responsible for renderPat()/closeNotePicker().
+function _repackFlat(flat) {
+  if (flat.length === 0) flat.push({t:'qr', dur:24});
+  var cap = measCap();
+  var newMeas = [[]];
+  var curSum = 0;
+  flat.forEach(function(n) {
+    if (curSum + n.dur > cap) {
+      var pad = fillWithRests(cap - curSum);
+      for (var i = 0; i < pad.length; i++) newMeas[newMeas.length-1].push(pad[i]);
+      newMeas.push([]);
+      curSum = 0;
+    }
+    newMeas[newMeas.length-1].push(n);
+    curSum += n.dur;
+  });
+  if (curSum < cap) {
+    var pad2 = fillWithRests(cap - curSum);
+    for (var i = 0; i < pad2.length; i++) newMeas[newMeas.length-1].push(pad2[i]);
+  }
+  measures = newMeas;
+}
+
+// Delete the neighbor note (-1 = previous, +1 = next) and keep the picker
+// open on the same logical position so the user can rapid-fire edits.
+function npDeleteNeighbor(dir) {
+  if (npMi < 0) return;
+  var flat = [];
+  measures.forEach(function(m) { m.forEach(function(n) { flat.push({t:n.t, dur:n.dur}); }); });
+  var absIdx = 0;
+  for (var i = 0; i < npMi; i++) absIdx += measures[i].length;
+  absIdx += npNi;
+  var targetIdx = absIdx + (dir < 0 ? -1 : 1);
+  if (targetIdx < 0 || targetIdx >= flat.length) {
+    // Boundary — shake-reject to signal there's nothing to delete on that side
+    var sheet = document.getElementById('npSheet');
+    sheet.classList.add('shake');
+    setTimeout(function() { sheet.classList.remove('shake'); }, 300);
+    return;
+  }
+  flat.splice(targetIdx, 1);
+  _repackFlat(flat);
+  // Re-locate the originally-selected note (its absolute index shifts by 1
+  // when we deleted the previous neighbor).
+  var newAbs = (dir < 0) ? absIdx - 1 : absIdx;
+  if (newAbs >= flat.length) newAbs = flat.length - 1;
+  if (newAbs < 0) newAbs = 0;
+  var mi = 0, ni = newAbs;
+  while (mi < measures.length && ni >= measures[mi].length) {
+    ni -= measures[mi].length;
+    mi++;
+  }
+  if (mi >= measures.length) { mi = measures.length - 1; ni = measures[mi].length - 1; }
+  renderPat();
+  if (isPlaying) restartMetro();
+  // Re-open the picker on the same logical note for rapid editing
+  if (mi >= 0 && ni >= 0 && measures[mi] && measures[mi][ni]) {
+    openNotePicker(mi, ni);
+  } else {
+    closeNotePicker();
+  }
+}
+
 function npDelete() {
   if (npMi < 0) return;
   // Flatten all measures into a single note array
@@ -3349,8 +3444,14 @@ function setMode(m) {
   document.getElementById('modeW').className = 'mode-btn' + (m === 'w' ? ' active' : '');
   document.getElementById('modeS').className = 'mode-btn' + (m === 's' ? ' active' : '');
   document.getElementById('modeBT').className = 'mode-btn' + (m === 'bt' ? ' active' : '');
+  // Sync the calibration mode-toggle if it's mounted
+  var cw = document.getElementById('calModeW'), cs = document.getElementById('calModeS'), cb = document.getElementById('calModeBT');
+  if (cw) cw.className = 'mode-btn' + (m === 'w' ? ' active' : '');
+  if (cs) cs.className = 'mode-btn' + (m === 's' ? ' active' : '');
+  if (cb) cb.className = 'mode-btn' + (m === 'bt' ? ' active' : '');
   updateAudioIcon();
   loadLat();
+  loadVol();
   // Reconnect mic with echo cancellation toggled for speaker mode
   var ecChanged = (prevMode === 's') !== (m === 's');
   if (ecChanged && isInit) {
@@ -3371,6 +3472,32 @@ function loadLat() {
 
 function saveLat() { localStorage.setItem(latKey(), latMs.toString()); }
 function adjLat(d) { latMs += d; document.getElementById('latIn').value = latMs; saveLat(); }
+
+// Per-mode volume — speakers want loud, headphones want quiet, BT depends.
+// Storing one global volume burns the user every time they switch outputs.
+function volKey() { return aMode === 'bt' ? 'tt_vol_bt' : aMode === 's' ? 'tt_vol_s' : 'tt_vol_w'; }
+function volDefault() { return aMode === 's' ? 90 : aMode === 'w' ? 70 : 80; }
+
+function loadVol() {
+  var v = localStorage.getItem(volKey());
+  if (v === null) {
+    // Backward-compat: migrate the old shared tt_vol the first time we see this mode
+    var legacy = localStorage.getItem('tt_vol');
+    v = (legacy !== null) ? legacy : String(volDefault());
+  }
+  clickVol = parseInt(v);
+  if (isNaN(clickVol)) clickVol = volDefault();
+  var volS = document.getElementById('volS');
+  var volV = document.getElementById('volV');
+  if (volS) volS.value = clickVol;
+  if (volV) volV.textContent = clickVol + '%';
+  var calVolS = document.getElementById('calVolS');
+  var calVolV = document.getElementById('calVolV');
+  if (calVolS) calVolS.value = clickVol;
+  if (calVolV) calVolV.textContent = clickVol + '%';
+}
+
+function saveVol() { localStorage.setItem(volKey(), clickVol.toString()); }
 
 function updateCalThMarker() {
   var eSens = sens;
@@ -3399,6 +3526,18 @@ async function startCalib() {
   calSensS.value = sens;
   document.getElementById('calSensV').textContent = sens;
   updateCalThMarker();
+  // Sync audio-mode toggle in the calibration overlay so user sees the current mode
+  document.getElementById('calModeW').className = 'mode-btn' + (aMode === 'w' ? ' active' : '');
+  document.getElementById('calModeS').className = 'mode-btn' + (aMode === 's' ? ' active' : '');
+  document.getElementById('calModeBT').className = 'mode-btn' + (aMode === 'bt' ? ' active' : '');
+  // Sync tempo slider — restore last-used calibration BPM (default 80 = forgiving)
+  var savedCBpm = parseInt(localStorage.getItem('tt_calBpm'));
+  if (savedCBpm >= 40 && savedCBpm <= 160) cBpm = savedCBpm;
+  document.getElementById('calBpmS').value = cBpm;
+  document.getElementById('calBpmV').textContent = cBpm + ' BPM';
+  // Sync volume slider with current per-mode volume
+  document.getElementById('calVolS').value = clickVol;
+  document.getElementById('calVolV').textContent = clickVol + '%';
 }
 
 function beginCalib() {
@@ -3849,6 +3988,19 @@ function closeSettings() {
   setTimeout(function() { document.getElementById('settingsBackdrop').classList.remove('show'); }, 250);
 }
 
+// Open the help panel and scroll the latency/calibration section into view.
+function openLatencyHelp() {
+  openSettingsPanel('help');
+  setTimeout(function() {
+    var anchor = document.getElementById('helpLatencyAnchor');
+    var panel = document.getElementById('panelHelp');
+    if (anchor && panel) {
+      // Scroll within the popover so the anchor is at the top
+      panel.scrollTop = anchor.offsetTop - 12;
+    }
+  }, 320);
+}
+
 /* ═══════════════════════════════════════════
    TIME SIGNATURE POPOVER
    ═══════════════════════════════════════════ */
@@ -3901,19 +4053,14 @@ function adjTSPop(which, d) {
    BOOT
    ═══════════════════════════════════════════ */
 (function() {
-  var sv = localStorage.getItem('tt_vol');
-  if (sv !== null) clickVol = parseInt(sv);
-  document.getElementById('volS').value = clickVol;
-  document.getElementById('volV').textContent = clickVol + '%';
-  document.getElementById('calVolS').value = clickVol;
-  document.getElementById('calVolV').textContent = clickVol + '%';
-  // Restore saved audio mode (default: speaker)
+  // Restore saved audio mode FIRST (per-mode volume + latency need to know the mode)
   var savedMode = localStorage.getItem('tt_aMode');
   if (savedMode && (savedMode === 'w' || savedMode === 's' || savedMode === 'bt')) {
     aMode = savedMode;
   } else {
     aMode = 's';
   }
+  loadVol();
   loadLat();
   updateAudioIcon();
   // Sync mode buttons in audio panel
@@ -4033,7 +4180,7 @@ function adjTSPop(which, d) {
   })();
   document.getElementById('sensS').addEventListener('input', function(e) { sens = parseInt(e.target.value); document.getElementById('sensV').textContent = sens; document.getElementById('micTh').style.left = (sens/128*100)+'%'; });
   document.getElementById('winS').addEventListener('input', function(e) { hitWin = parseInt(e.target.value); document.getElementById('winV').textContent = hitWin+'ms'; });
-  function syncVol(v) { clickVol = v; document.getElementById('volS').value = v; document.getElementById('volV').textContent = v + '%'; document.getElementById('calVolS').value = v; document.getElementById('calVolV').textContent = v + '%'; localStorage.setItem('tt_vol', v); }
+  function syncVol(v) { clickVol = v; document.getElementById('volS').value = v; document.getElementById('volV').textContent = v + '%'; document.getElementById('calVolS').value = v; document.getElementById('calVolV').textContent = v + '%'; saveVol(); }
   document.getElementById('volS').addEventListener('input', function(e) { syncVol(parseInt(e.target.value)); });
   document.getElementById('calVolS').addEventListener('input', function(e) { syncVol(parseInt(e.target.value)); });
   document.getElementById('calSensS').addEventListener('input', function(e) {
@@ -4043,6 +4190,14 @@ function adjTSPop(which, d) {
     document.getElementById('sensV').textContent = sens;
     document.getElementById('micTh').style.left = (sens / 128 * 100) + '%';
     updateCalThMarker();
+  });
+  // Calibration tempo: lower BPM = more accurate human-clap calibration.
+  // If the user nudges this mid-calibration we re-seed cNxt so click cadence
+  // changes immediately rather than waiting for the next pass.
+  document.getElementById('calBpmS').addEventListener('input', function(e) {
+    cBpm = Math.max(40, Math.min(160, parseInt(e.target.value) || 80));
+    document.getElementById('calBpmV').textContent = cBpm + ' BPM';
+    localStorage.setItem('tt_calBpm', cBpm.toString());
   });
   document.getElementById('latIn').addEventListener('change', function(e) { latMs = Math.max(-500, Math.min(500, parseInt(e.target.value)||0)); e.target.value = latMs; saveLat(); });
   document.getElementById('latIn').addEventListener('input', function(e) { latMs = Math.max(-500, Math.min(500, parseInt(e.target.value)||0)); });
