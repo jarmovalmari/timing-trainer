@@ -10,6 +10,7 @@
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700;800&family=DM+Sans:wght@300;400;500;600;700&family=Inter+Tight:wght@400;500;600;700;800;900&display=swap');
 :root {
   --bg:#08080a; --surface:#131316; --surface2:#1a1a1e; --border:#222226;
+  --card:#131316; /* used by .mic-sel and .share-card — was undefined (transparent) */
   --text:#e8e8ec; --text-dim:#6a6a72; --accent:#e8e8ec;
   --green:#22c55e; --green-bg:rgba(34,197,94,0.12);
   --red:#ef4444; --red-bg:rgba(239,68,68,0.12);
@@ -96,14 +97,6 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 .mode-btn.active { background:var(--accent); color:var(--bg); font-weight:600; }
 
 /* Latency */
-.lat-row { display:flex; align-items:center; gap:8px; margin-top:12px; }
-.lat-wrap { display:flex; align-items:center; gap:4px; flex:1; }
-.lat-input { font-family:'JetBrains Mono',monospace; font-size:16px; font-weight:600; width:80px; text-align:center; background:var(--surface2); border:1px solid var(--border); border-radius:6px; padding:8px 4px; color:var(--text); outline:none; }
-.lat-input:focus { border-color:var(--accent); }
-.lat-unit { font-size:12px; color:var(--text-dim); }
-.lat-btns { display:flex; gap:4px; }
-.lat-btn { font-family:'JetBrains Mono',monospace; font-size:11px; padding:6px 8px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text-dim); cursor:pointer; white-space:nowrap; }
-.lat-btn:active { background:var(--border); }
 .cal-btn { width:100%; padding:10px; margin-top:12px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:13px; font-weight:500; cursor:pointer; text-align:center; }
 .cal-btn:active { background:var(--border); }
 
@@ -577,7 +570,7 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 <div id="batchBar">
   <span class="batch-label"><span id="batchCount">0</span> selected</span>
   <button class="batch-btn danger" onclick="batchDeleteAll()">Delete All</button>
-  <button class="batch-btn" onclick="batchReplaceAll('qr')">→ Rests</button>
+  <button class="batch-btn" onclick="batchReplaceAll()">→ Rests</button>
   <button class="batch-btn" onclick="batchCancel()">Cancel</button>
 </div>
 
@@ -731,7 +724,10 @@ var sens = 12, hitWin = 120, MR = 35, RA = 0.3, ML = 150; // min retrigger ms, r
 var _effHitWin = 120; // hitWin scaled to current tempo — procHit reads this (set in startHitDet)
 var lastHit = 0, hitArmed = true, micPoll = null, micMeterI = null;
 var schedT = null, nextNote = 0, curSub = 0, sBeats = [], countOffTids = [], inCountOff = false;
-var LA = 100, SI = 20, clickBlank = [], BLANK_AFTER = 50;
+// LA (scheduling lookahead ms) must stay ABOVE the largest hit-match window:
+// an early hit can only match a beat that has already been scheduled into
+// sBeats, so the window is capped at LA-20 in startHitDet.
+var LA = 180, SI = 20, clickBlank = [], BLANK_AFTER = 50;
 var sessH = [], sessStart = 0, sessBpm = 0;
 // Click grid state
 var clickPattern = true, clickGrid = false;
@@ -980,8 +976,11 @@ function loadPattern(idx) {
   if (!pats[idx]) return;
   var p = pats[idx];
   loadedPatIdx = idx;
-  tsTop = p.tsTop; tsBot = p.tsBot;
-  measures = p.measures;
+  // Validate time signature from storage — NaN/garbage here poisons measCap()
+  // and every scheduling calculation downstream.
+  tsTop = (p.tsTop >= 1 && p.tsTop <= 16) ? p.tsTop : 4;
+  tsBot = ([1,2,4,8,16].indexOf(p.tsBot) >= 0) ? p.tsBot : 4;
+  measures = Array.isArray(p.measures) ? p.measures : [defaultMeasure()];
   // Restore BPM
   if (p.bpm) setBpm(p.bpm);
   // Restore metronome settings
@@ -1125,7 +1124,9 @@ async function connectMic(deviceId) {
     if (hasLive) {
       if (micSrcNode) micSrcNode.disconnect();
       micSrcNode = audioCtx.createMediaStreamSource(micStream);
-      if (!analyser) { analyser = audioCtx.createAnalyser(); analyser.fftSize = 512; analyser.smoothingTimeConstant = 0; }
+      // fftSize 1024 = ~21ms of samples: deep enough that onset back-dating
+      // still finds the attack even when a poll tick lands late.
+      if (!analyser) { analyser = audioCtx.createAnalyser(); analyser.fftSize = 1024; analyser.smoothingTimeConstant = 0; }
       micSrcNode.connect(analyser);
       micData = new Uint8Array(analyser.fftSize);
       hitArmed = true;
@@ -1147,7 +1148,7 @@ async function connectMic(deviceId) {
   micSrcNode = audioCtx.createMediaStreamSource(micStream);
   if (!analyser) {
     analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 512;
+    analyser.fftSize = 1024; // ~21ms window — see comment in the reuse path above
     analyser.smoothingTimeConstant = 0;
   }
   micSrcNode.connect(analyser);
@@ -1219,12 +1220,33 @@ function updateMicStatus() {
   }
 }
 
-function getPeak() {
-  if (!analyser || !micData) return 0;
+// Single-pass scan of the analyser's time-domain buffer.
+// Returns overall peak plus the index of the first sample crossing `thresh`.
+// The onset index lets hit detection back-date the timestamp to when the
+// sound actually entered the buffer instead of when the poll noticed it —
+// that difference is 0–20ms of per-hit jitter (poll cadence + buffer depth),
+// which is enormous against the ±10ms "on time" target.
+function scanMic(thresh) {
+  if (!analyser || !micData) return null;
   analyser.getByteTimeDomainData(micData);
-  var p = 0;
-  for (var i = 0; i < micData.length; i++) { var v = Math.abs(micData[i] - 128); if (v > p) p = v; }
-  return p;
+  var peak = 0, onset = -1;
+  for (var i = 0; i < micData.length; i++) {
+    var v = micData[i] - 128; if (v < 0) v = -v;
+    if (v > peak) peak = v;
+    if (onset < 0 && v > thresh) onset = i;
+  }
+  return { peak: peak, onset: onset };
+}
+
+// Back-date a poll timestamp to the onset sample's position in the buffer.
+function onsetTime(now, onsetIdx) {
+  var idx = onsetIdx >= 0 ? onsetIdx : micData.length - 1;
+  return now - (micData.length - idx) / audioCtx.sampleRate;
+}
+
+function getPeak() {
+  var s = scanMic(Infinity);
+  return s ? s.peak : 0;
 }
 
 var mfTO = null;
@@ -1232,6 +1254,10 @@ function startMicMeter() {
   if (micMeterI) return;
   micMeterI = setInterval(function() {
     if (!analyser) return;
+    // The meter lives inside the mic panel — skip the analyser read and DOM
+    // writes entirely while it's hidden (this loop runs for the whole session).
+    var panel = document.getElementById('panelMic');
+    if (!panel || !panel.classList.contains('show')) return;
     var p = getPeak();
     var pct = Math.min(100, (p / 128) * 100);
     document.getElementById('micFill').style.width = pct + '%';
@@ -1884,15 +1910,6 @@ function syncSndTiles() {
   document.getElementById('gridCfg').style.display = clickGrid ? '' : 'none';
   document.getElementById('loopCfg').style.display = loopEnabled ? '' : 'none';
 }
-// Compat wrapper for loadPattern which may store old clickMode string
-function setClickMode(mode) {
-  clickPattern = (mode === 'pattern' || mode === 'both');
-  clickGrid = (mode === 'grid' || mode === 'both');
-  syncSndTiles();
-  if (clickGrid) renderGridPos();
-  if (isPlaying) rebuildGridLive();
-}
-
 function setClickMute(on) {
   clickMute = on;
   document.getElementById('clickMuteChk').checked = on;
@@ -2625,16 +2642,6 @@ function fillWithRests(ticks) {
   return fills;
 }
 
-function trimAndPad(mi) {
-  var m = measures[mi], cap = measCap();
-  var sum = 0;
-  for (var i = 0; i < m.length; i++) sum += m[i].dur;
-  if (sum < cap) {
-    var fills = fillWithRests(cap - sum);
-    for (var i = 0; i < fills.length; i++) m.push(fills[i]);
-  }
-}
-
 function npSplit() {
   if (npMi < 0) return;
   var m = measures[npMi];
@@ -2665,6 +2672,23 @@ function npToRest() {
   var m = measures[npMi];
   var note = m[npNi];
   var dur = note.dur;
+  // Triplet note: no rest of duration 8/16 exists (fillWithRests would drop
+  // 1-2 ticks and corrupt the bar) — convert the whole 3-group to one rest.
+  if (NT[note.t] && NT[note.t].trip) {
+    var before = 0;
+    for (var bi = npNi - 1; bi >= 0 && m[bi].t === note.t; bi--) before++;
+    var gs = npNi - (before % 3);
+    if (gs + 2 < m.length && m[gs+1].t === note.t && m[gs+2].t === note.t) {
+      var gd = dur * 3; // 24 or 48
+      m.splice(gs, 3, {t: gd === 48 ? 'hr' : 'qr', dur: gd});
+      renderPat();
+      closeNotePicker();
+      if (isPlaying) restartMetro();
+    } else {
+      closeNotePicker(); // broken group — refuse rather than corrupt
+    }
+    return;
+  }
   // Find rest of same duration
   var restType = null;
   var candidates = Object.keys(NT);
@@ -2689,63 +2713,130 @@ function npToRest() {
 
 // Helper: re-pack a flat list of notes into measure-shaped buckets and replace
 // the live `measures`. Caller is responsible for renderPat()/closeNotePicker().
+// Triplet 3-groups are packed as atomic units: a lone et/qt is 8/16 ticks
+// (not a multiple of 3), so letting a group straddle a bar boundary can make
+// the pad amount unfillable by rests (min rest = 3 ticks) and silently lose
+// ticks — which desyncs the pattern from the grid/loop schedulers.
 function _repackFlat(flat) {
   if (flat.length === 0) flat.push({t:'qr', dur:24});
+  // Group into atomic units
+  var units = [];
+  var i = 0;
+  while (i < flat.length) {
+    var n = flat[i];
+    if (NT[n.t] && NT[n.t].trip && i + 2 < flat.length &&
+        flat[i+1].t === n.t && flat[i+2].t === n.t) {
+      units.push({notes: [flat[i], flat[i+1], flat[i+2]], dur: n.dur * 3});
+      i += 3;
+    } else {
+      units.push({notes: [n], dur: n.dur});
+      i++;
+    }
+  }
   var cap = measCap();
   var newMeas = [[]];
   var curSum = 0;
-  flat.forEach(function(n) {
-    if (curSum + n.dur > cap) {
-      var pad = fillWithRests(cap - curSum);
-      for (var i = 0; i < pad.length; i++) newMeas[newMeas.length-1].push(pad[i]);
-      newMeas.push([]);
-      curSum = 0;
+  function padAndBreak() {
+    var pad = fillWithRests(cap - curSum);
+    for (var k = 0; k < pad.length; k++) newMeas[newMeas.length-1].push(pad[k]);
+    newMeas.push([]);
+    curSum = 0;
+  }
+  units.forEach(function(u) {
+    if (curSum + u.dur > cap && curSum > 0) padAndBreak();
+    if (u.dur > cap) {
+      // Unit larger than a whole bar (exotic time signatures) — fall back to
+      // note-by-note so we don't loop forever
+      u.notes.forEach(function(nn) {
+        if (curSum + nn.dur > cap && curSum > 0) padAndBreak();
+        newMeas[newMeas.length-1].push(nn);
+        curSum += nn.dur;
+      });
+    } else {
+      u.notes.forEach(function(nn) { newMeas[newMeas.length-1].push(nn); });
+      curSum += u.dur;
     }
-    newMeas[newMeas.length-1].push(n);
-    curSum += n.dur;
   });
   if (curSum < cap) {
     var pad2 = fillWithRests(cap - curSum);
-    for (var i = 0; i < pad2.length; i++) newMeas[newMeas.length-1].push(pad2[i]);
+    for (var j = 0; j < pad2.length; j++) newMeas[newMeas.length-1].push(pad2[j]);
   }
   measures = newMeas;
+}
+
+// Delete the note at (mi, ni), expanding to the whole triplet 3-group when the
+// target is a triplet member (a lone et/qt corrupts bar padding — see
+// _repackFlat). Returns {start, count} of the deletion in flat coordinates.
+function _deleteAt(mi, ni) {
+  var m = measures[mi];
+  var start = ni, count = 1;
+  var note = m[ni];
+  if (NT[note.t] && NT[note.t].trip) {
+    var before = 0;
+    for (var bi = ni - 1; bi >= 0 && m[bi].t === note.t; bi--) before++;
+    var gs = ni - (before % 3);
+    if (gs + 2 < m.length && m[gs+1].t === note.t && m[gs+2].t === note.t) {
+      start = gs; count = 3;
+    }
+  }
+  var absStart = 0;
+  for (var i = 0; i < mi; i++) absStart += measures[i].length;
+  absStart += start;
+  var flat = [];
+  measures.forEach(function(mm) { mm.forEach(function(n) { flat.push({t:n.t, dur:n.dur}); }); });
+  flat.splice(absStart, count);
+  _repackFlat(flat);
+  return {start: absStart, count: count};
+}
+
+// Map an absolute flat index back to (mi, ni) coordinates in `measures`.
+function _flatToCoords(abs) {
+  var mi = 0, ni = abs;
+  while (mi < measures.length && ni >= measures[mi].length) {
+    ni -= measures[mi].length;
+    mi++;
+  }
+  if (mi >= measures.length) { mi = measures.length - 1; ni = measures[mi].length - 1; }
+  return {mi: mi, ni: ni};
 }
 
 // Delete the neighbor note (-1 = previous, +1 = next) and keep the picker
 // open on the same logical position so the user can rapid-fire edits.
 function npDeleteNeighbor(dir) {
   if (npMi < 0) return;
-  var flat = [];
-  measures.forEach(function(m) { m.forEach(function(n) { flat.push({t:n.t, dur:n.dur}); }); });
   var absIdx = 0;
   for (var i = 0; i < npMi; i++) absIdx += measures[i].length;
   absIdx += npNi;
+  var totalNotes = 0;
+  measures.forEach(function(m) { totalNotes += m.length; });
   var targetIdx = absIdx + (dir < 0 ? -1 : 1);
-  if (targetIdx < 0 || targetIdx >= flat.length) {
+  if (targetIdx < 0 || targetIdx >= totalNotes) {
     // Boundary — shake-reject to signal there's nothing to delete on that side
     var sheet = document.getElementById('npSheet');
     sheet.classList.add('shake');
     setTimeout(function() { sheet.classList.remove('shake'); }, 300);
     return;
   }
-  flat.splice(targetIdx, 1);
-  _repackFlat(flat);
-  // Re-locate the originally-selected note (its absolute index shifts by 1
-  // when we deleted the previous neighbor).
-  var newAbs = (dir < 0) ? absIdx - 1 : absIdx;
-  if (newAbs >= flat.length) newAbs = flat.length - 1;
-  if (newAbs < 0) newAbs = 0;
-  var mi = 0, ni = newAbs;
-  while (mi < measures.length && ni >= measures[mi].length) {
-    ni -= measures[mi].length;
-    mi++;
+  var tc = _flatToCoords(targetIdx);
+  var del = _deleteAt(tc.mi, tc.ni); // expands to full triplet group when needed
+  // Re-locate the originally-selected note after the deletion
+  var newAbs;
+  if (absIdx >= del.start && absIdx < del.start + del.count) {
+    newAbs = del.start; // original was inside the deleted group
+  } else if (absIdx >= del.start + del.count) {
+    newAbs = absIdx - del.count;
+  } else {
+    newAbs = absIdx;
   }
-  if (mi >= measures.length) { mi = measures.length - 1; ni = measures[mi].length - 1; }
+  var remaining = totalNotes - del.count;
+  if (newAbs >= remaining) newAbs = remaining - 1;
+  if (newAbs < 0) newAbs = 0;
+  var c = _flatToCoords(newAbs);
   renderPat();
   if (isPlaying) restartMetro();
   // Re-open the picker on the same logical note for rapid editing
-  if (mi >= 0 && ni >= 0 && measures[mi] && measures[mi][ni]) {
-    openNotePicker(mi, ni);
+  if (measures[c.mi] && measures[c.mi][c.ni]) {
+    openNotePicker(c.mi, c.ni);
   } else {
     closeNotePicker();
   }
@@ -2753,37 +2844,7 @@ function npDeleteNeighbor(dir) {
 
 function npDelete() {
   if (npMi < 0) return;
-  // Flatten all measures into a single note array
-  var flat = [];
-  measures.forEach(function(m) { m.forEach(function(n) { flat.push({t:n.t, dur:n.dur}); }); });
-  // Find the absolute index of this note
-  var absIdx = 0;
-  for (var i = 0; i < npMi; i++) absIdx += measures[i].length;
-  absIdx += npNi;
-  // Remove it
-  flat.splice(absIdx, 1);
-  if (flat.length === 0) flat.push({t:'qr', dur:24});
-  // Re-pack into measures
-  var cap = measCap();
-  var newMeas = [[]];
-  var curSum = 0;
-  flat.forEach(function(n) {
-    if (curSum + n.dur > cap) {
-      // Pad current measure with correctly-typed rests
-      var pad = fillWithRests(cap - curSum);
-      for (var i = 0; i < pad.length; i++) newMeas[newMeas.length-1].push(pad[i]);
-      newMeas.push([]);
-      curSum = 0;
-    }
-    newMeas[newMeas.length-1].push(n);
-    curSum += n.dur;
-  });
-  // Pad last measure
-  if (curSum < cap) {
-    var pad = fillWithRests(cap - curSum);
-    for (var i = 0; i < pad.length; i++) newMeas[newMeas.length-1].push(pad[i]);
-  }
-  measures = newMeas;
+  _deleteAt(npMi, npNi); // expands to full triplet group when needed
   renderPat();
   closeNotePicker();
   if (isPlaying) restartMetro();
@@ -2815,36 +2876,44 @@ function batchDeleteAll() {
   // Delete from back to front to preserve indices
   var sorted = _batchIndices.slice().sort(function(a,b) { return b.mi - a.mi || b.ni - a.ni; });
   sorted.forEach(function(idx) { measures[idx.mi].splice(idx.ni, 1); });
-  // Remove empty measures and repack
+  // Repack what's left (batch selects ALL notes of a type, so triplet groups
+  // are always removed whole — no orphans)
   var flat = [];
   measures.forEach(function(m) { m.forEach(function(n) { flat.push({t:n.t, dur:n.dur}); }); });
-  if (flat.length === 0) flat.push({t:'qr', dur:24});
-  var cap = measCap();
-  var newMeas = [[]]; var curSum = 0;
-  flat.forEach(function(n) {
-    if (curSum + n.dur > cap) {
-      var pad = fillWithRests(cap - curSum);
-      for (var i = 0; i < pad.length; i++) newMeas[newMeas.length-1].push(pad[i]);
-      newMeas.push([]); curSum = 0;
-    }
-    newMeas[newMeas.length-1].push(n); curSum += n.dur;
-  });
-  if (curSum < cap) {
-    var pad = fillWithRests(cap - curSum);
-    for (var i = 0; i < pad.length; i++) newMeas[newMeas.length-1].push(pad[i]);
-  }
-  measures = newMeas;
+  _repackFlat(flat);
   batchCancel();
   renderPat();
   if (isPlaying) restartMetro();
 }
-function batchReplaceAll(newType) {
-  if (!_batchIndices.length) return;
-  var nd = NT[newType];
-  if (!nd) return;
-  _batchIndices.forEach(function(idx) {
-    if (idx.mi < measures.length && idx.ni < measures[idx.mi].length) {
-      measures[idx.mi][idx.ni] = {t:newType, dur:nd.dur};
+function batchReplaceAll() {
+  // Convert every selected note to rest(s) of the SAME duration. The old code
+  // stamped fixed 24-tick quarter rests over any duration, corrupting bar
+  // sums (e.g. 16 sixteenths became 384 ticks in a 96-tick bar).
+  if (!_batchIndices.length || !_batchType) return;
+  var targetType = _batchType;
+  if (NT[targetType] && NT[targetType].rest) { batchCancel(); return; } // already rests
+  measures.forEach(function(m) {
+    for (var ni = 0; ni < m.length; ni++) {
+      var n = m[ni];
+      if (n.t !== targetType) continue;
+      if (NT[n.t].trip) {
+        // Triplet notes have no same-duration rest (8/16 ticks). Batch selects
+        // ALL notes of the type, so whole groups are selected — collapse each
+        // intact group of 3 into one rest of the group duration (24 or 48).
+        if (ni + 2 < m.length && m[ni+1].t === n.t && m[ni+2].t === n.t) {
+          var gd = n.dur * 3;
+          m.splice(ni, 3, {t: gd === 48 ? 'hr' : 'qr', dur: gd});
+        }
+        // Broken group (shouldn't exist) — leave untouched rather than corrupt
+        continue;
+      }
+      // Straight note — swap in the same-duration rest
+      for (var k in NT) {
+        if (NT[k].rest && !NT[k].trip && NT[k].dur === n.dur) {
+          m[ni] = {t: k, dur: n.dur};
+          break;
+        }
+      }
     }
   });
   batchCancel();
@@ -2860,40 +2929,26 @@ function batchCancel() {
 
 function npInsertAfter() {
   if (npMi < 0) return;
+  // Flatten, insert, repack: overflow cascades across ALL following measures
+  // (growing the pattern if needed). The old in-place version trimmed notes
+  // off the end of the next measure — silent data loss.
   var m = measures[npMi];
-  var cap = measCap();
-  // Insert a quarter rest (or largest rest that fits) after current note
-  var insertDur = 24;
-  var insertType = 'qr';
-  // Insert the rest after current position
-  m.splice(npNi + 1, 0, {t:insertType, dur:insertDur});
-  // Check if measure overflows
-  var sum = measSum(m);
-  if (sum > cap) {
-    // Move overflow notes from end to next measure
-    var overflow = [];
-    while (measSum(m) > cap) {
-      overflow.unshift(m.pop());
-    }
-    // Pad current measure if under capacity
-    trimAndPad(npMi);
-    // Create next measure if needed
-    if (npMi + 1 >= measures.length) {
-      measures.splice(npMi + 1, 0, []);
-    }
-    var nm = measures[npMi + 1];
-    // Prepend overflow to next measure
-    for (var oi = overflow.length - 1; oi >= 0; oi--) {
-      nm.unshift(overflow[oi]);
-    }
-    // Trim next measure if it overflows
-    var nsum = measSum(nm);
-    while (nsum > cap && nm.length > 1) {
-      nsum -= nm[nm.length - 1].dur;
-      nm.pop();
-    }
-    if (measSum(nm) < cap) trimAndPad(npMi + 1);
+  var note = m[npNi];
+  var absIdx = 0;
+  for (var i = 0; i < npMi; i++) absIdx += measures[i].length;
+  absIdx += npNi;
+  var insPos = absIdx + 1;
+  // Inside a triplet group, insert AFTER the whole group — inserting
+  // mid-group would break it apart.
+  if (NT[note.t] && NT[note.t].trip) {
+    var before = 0;
+    for (var bi = npNi - 1; bi >= 0 && m[bi].t === note.t; bi--) before++;
+    insPos = absIdx - (before % 3) + 3;
   }
+  var flat = [];
+  measures.forEach(function(mm) { mm.forEach(function(n) { flat.push({t:n.t, dur:n.dur}); }); });
+  flat.splice(insPos, 0, {t:'qr', dur:24});
+  _repackFlat(flat);
   renderPat();
   closeNotePicker();
   if (isPlaying) restartMetro();
@@ -3024,10 +3079,16 @@ function tickToSec(tick) {
   return tick / 24 * (60.0 / bpm);
 }
 
+// "Never calibrated" means latMs is 0 AND nothing stored for this mode —
+// a stored 0 is a legitimate calibration result and must not re-nag.
+function isCalibrated() {
+  return latMs !== 0 || localStorage.getItem(latKey()) !== null;
+}
+
 async function handleGo() {
   if (isPlaying) return;
   if (!(await ensureInit())) return;
-  if (latMs === 0) { pendingGo = true; startCalib(); return; }
+  if (!isCalibrated()) { pendingGo = true; startCalib(); return; }
   startMetro();
 }
 function handleStop() { if (!isPlaying) return; stopMetro(); }
@@ -3128,6 +3189,17 @@ async function startMetro(skipCountoff) {
     lSched = loopEnabled ? buildLoopSched(loopType) : [];
     curLS = 0; nextLN = loopStart; lLoopCount = 0;
 
+    // Arm hit detection BEFORE bar 1: players regularly anticipate the first
+    // note, and a hit even 50ms early used to vanish because the mic poll
+    // only started exactly at loop start. Beat 1 is already in sBeats by then
+    // (scheduled LA ms ahead), so early hits match correctly.
+    var detLead = Math.min(0.3, beatDur * 0.4);
+    var detDelay = (loopStart - detLead - audioCtx.currentTime) * 1000;
+    countOffTids.push(setTimeout(function() {
+      if (!isPlaying) return;
+      startHitDet();
+    }, Math.max(0, detDelay)));
+
     var countDelay = (loopStart - audioCtx.currentTime) * 1000;
     countOffTids.push(setTimeout(function() {
       if (!isPlaying) return;
@@ -3135,7 +3207,6 @@ async function startMetro(skipCountoff) {
       if (cOv.parentNode) cOv.parentNode.removeChild(cOv);
       var calInfo = latMs !== 0 ? ' (cal: '+latMs+'ms)' : '';
       statusEl.innerHTML = '<span class="s-dot on"></span>Playing' + calInfo;
-      startHitDet();
     }, Math.max(0, countDelay)));
   }
 
@@ -3351,8 +3422,10 @@ function startHitDet() {
   // 50% of the shortest note, capped at 50ms, floored at 20ms to survive typical noise.
   var MULTI_DRUM_LOCKOUT = Math.max(20, Math.min(50, noteInt * 0.5));
   // Hit-match window: never let it span half a beat, else a hit could be matched
-  // to the wrong scheduled beat at fast tempos.
-  _effHitWin = Math.min(hitWin, noteInt * 0.48);
+  // to the wrong scheduled beat at fast tempos. Also cap below the scheduling
+  // lookahead — beats further out than LA aren't in sBeats yet, so a wider
+  // window would silently drop early hits at slow tempos.
+  _effHitWin = Math.min(hitWin, noteInt * 0.48, LA - 20);
   micPoll = setInterval(function() {
     try {
       if (!analyser || !isPlaying) return;
@@ -3361,7 +3434,6 @@ function startHitDet() {
         audioCtx.resume().catch(function() {});
         return;
       }
-      var p = getPeak();
       var now = audioCtx.currentTime;
       var nowMs = now * 1000;
       // Speaker mode: EC handles most bleed, blanking catches residual
@@ -3374,17 +3446,21 @@ function startHitDet() {
           }
         }
       }
+      var scan = scanMic(eSens);
+      if (!scan) return;
       if (hitArmed) {
-        if (p > eSens && (nowMs - lastHit) > Math.max(MR, MULTI_DRUM_LOCKOUT)) {
+        if (scan.peak > eSens && (nowMs - lastHit) > Math.max(MR, MULTI_DRUM_LOCKOUT)) {
           lastHit = nowMs;
           hitArmed = false;
-          procHit(now);
+          // Back-date to the attack's actual position in the mic buffer —
+          // removes the poll-cadence jitter from the timestamp entirely.
+          procHit(onsetTime(now, scan.onset));
         }
-      } else if (p < eSens * eRA || (nowMs - lastHit) > eML) {
+      } else if (scan.peak < eSens * eRA || (nowMs - lastHit) > eML) {
         hitArmed = true;
       }
     } catch(e) { /* prevent polling loop from dying on transient errors */ }
-  }, 3);
+  }, 5);
 }
 
 function stopHitDet() { if (micPoll) { clearInterval(micPoll); micPoll = null; } }
@@ -3471,7 +3547,6 @@ function loadLat() {
 }
 
 function saveLat() { localStorage.setItem(latKey(), latMs.toString()); }
-function adjLat(d) { latMs += d; document.getElementById('latIn').value = latMs; saveLat(); }
 
 // Per-mode volume — speakers want loud, headphones want quiet, BT depends.
 // Storing one global volume burns the user every time they switch outputs.
@@ -3560,10 +3635,12 @@ function beginCalib() {
       cClk.push(cNxt);
       cNxt += bd;
 
-      // Every 4 clicks, check if threshold needs lowering
+      // Every 4 clicks, check if threshold needs lowering.
+      // Gate at peak > 10: quiet-room noise floor sits around 3-8, and
+      // auto-lowering toward it creates phantom hits that poison the median.
       if (cClk.length > 0 && cClk.length % 4 === 0 && cClk.length > atLastCheck) {
         var newHits = cHit.length - atLastHits;
-        if (newHits === 0 && atPeakMax > 2) {
+        if (newHits === 0 && atPeakMax > 10) {
           // Signal present but below threshold — lower it
           var newSens = Math.max(3, Math.floor(atPeakMax * 0.6));
           if (newSens < sens) {
@@ -3587,13 +3664,8 @@ function beginCalib() {
 
   cMP = setInterval(function() {
     if (cSt !== 'listening') return;
-    var p = getPeak();
     var now = audioCtx.currentTime;
     var nowMs = now * 1000;
-    document.getElementById('calMF').style.width = Math.min(100, (p/128)*100) + '%';
-
-    // Track max peak for auto-threshold
-    if (p > atPeakMax) atPeakMax = p;
 
     // Speaker mode: EC + blanking during click windows (matches playback)
     var eSens = sens;
@@ -3605,11 +3677,21 @@ function beginCalib() {
       }
     }
 
+    var scan = scanMic(eSens);
+    if (!scan) return;
+    document.getElementById('calMF').style.width = Math.min(100, (scan.peak/128)*100) + '%';
+
+    // Track max peak for auto-threshold
+    if (scan.peak > atPeakMax) atPeakMax = scan.peak;
+
     if (cArmed) {
-      if (p > eSens && (nowMs - cLH) > MR) {
+      if (scan.peak > eSens && (nowMs - cLH) > MR) {
         cLH = nowMs;
         cArmed = false;
-        cHit.push(now);
+        // Same onset back-dating as live hit detection \u2014 the calibration
+        // offsets and playback offsets must be measured identically or the
+        // compensation stops canceling out.
+        cHit.push(onsetTime(now, scan.onset));
         var cnt = cHit.length;
         document.getElementById('calCnt').textContent = cnt;
         document.getElementById('calProg').textContent = cnt + ' hits \u2014 tap End when done';
@@ -3617,10 +3699,10 @@ function beginCalib() {
         vis.classList.add('flash');
         setTimeout(function() { vis.classList.remove('flash'); }, 120);
       }
-    } else if (p < eSens * RA || (nowMs - cLH) > ML) {
+    } else if (scan.peak < eSens * RA || (nowMs - cLH) > ML) {
       cArmed = true;
     }
-  }, 3);
+  }, 5);
 }
 
 function finishCalib() {
@@ -3665,7 +3747,10 @@ function analyzeCalib() {
     return;
   }
 
-  var median = filtered[Math.floor(filtered.length / 2)];
+  // True median: average the two middles for even-length arrays
+  // (filtered preserves the sort order of offsets).
+  var mid = Math.floor(filtered.length / 2);
+  var median = (filtered.length % 2 === 1) ? filtered[mid] : (filtered[mid - 1] + filtered[mid]) / 2;
   cDet = Math.round(-median);
   document.getElementById('calRes').classList.add('show');
   document.getElementById('calResV').textContent = cDet + ' ms';
@@ -3742,7 +3827,7 @@ function showResultStrip() {
   histHtml += '</div>';
 
   var calNote = '';
-  if (latMs === 0) {
+  if (!isCalibrated()) {
     calNote = '<div class="cal-hint">\u26A0 No calibration \u2014 results may be offset. <span style="text-decoration:underline;cursor:pointer" onclick="startCalib()">Calibrate</span></div>';
   }
 
@@ -3941,14 +4026,8 @@ function saveBlobAsFile(blob) {
 }
 
 /* ═══════════════════════════════════════════
-   AUDIO ICON & AUTO-DETECT
+   AUDIO ICON
    ═══════════════════════════════════════════ */
-function toggleAudioPanel() {
-  var panel = document.getElementById('panelAudio');
-  if (panel.classList.contains('show')) { closeSettings(); return; }
-  openSettingsPanel('audio');
-}
-
 function updateAudioIcon() {
   document.getElementById('iconWired').setAttribute('class', 'audio-icon-svg' + (aMode === 'w' ? ' active' : ''));
   document.getElementById('iconSpeaker').setAttribute('class', 'audio-icon-svg' + (aMode === 's' ? ' active' : ''));
@@ -3968,8 +4047,6 @@ function updateAudioIcon() {
 /* ═══════════════════════════════════════════
    SETTINGS MENU
    ═══════════════════════════════════════════ */
-function isDesktop() { return window.innerWidth >= 960; }
-
 function openSettingsPanel(name) {
   // Close any open panels immediately (no delay)
   ['panelMetro','panelMic','panelAudio','panelHelp'].forEach(function(id) {
