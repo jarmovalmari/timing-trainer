@@ -422,6 +422,11 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
 <div class="settings-popover" id="panelAudio">
   <div class="settings-popover-handle"></div>
   <div class="settings-popover-title">Audio <span class="settings-popover-close" onclick="closeSettings()">&times;</span></div>
+  <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+    <input type="checkbox" id="autoRouteChk" onchange="setAutoRoute(this.checked)" style="margin:0;cursor:pointer">
+    <label for="autoRouteChk" style="font-size:12px;color:var(--text-dim);cursor:pointer">Auto-detect output</label>
+    <span id="autoRouteInfo" style="margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim)"></span>
+  </div>
   <div class="mode-toggle" style="margin-bottom:12px">
     <div class="mode-btn" id="modeW" onclick="setMode('w')">Wired</div>
     <div class="mode-btn active" id="modeS" onclick="setMode('s')">Speaker</div>
@@ -449,7 +454,7 @@ body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text)
     </div>
 
     <div id="helpLatencyAnchor" style="color:var(--text);font-weight:600;margin:0 0 4px">Audio Mode &amp; Latency</div>
-    <p style="margin:0 0 12px">The click is heard differently depending on your output. <b>Wired</b> (headphones/line-out) is near-zero latency. <b>Speaker</b> has added air travel time. <b>Bluetooth</b> adds 100&ndash;300&nbsp;ms codec delay. The app stores a separate calibration value for each mode, so switching output types works correctly — but <b>you must tell the app which mode you&rsquo;re using</b> via the speaker icon in the transport bar.</p>
+    <p style="margin:0 0 12px">The click is heard differently depending on your output. <b>Wired</b> (headphones/line-out) is near-zero latency. <b>Speaker</b> has added air travel time. <b>Bluetooth</b> adds 100&ndash;300&nbsp;ms codec delay. The app stores a separate calibration value for each mode, so switching output types works correctly. By default the app <b>auto-detects</b> the output (wired beats Bluetooth beats speaker) and only switches when it&rsquo;s certain. One case it cannot see: <b>wired headphones without a microphone</b> — pick Wired manually for those (tapping a mode turns auto-detect off; re-enable it in the audio panel).</p>
 
     <div style="color:var(--text);font-weight:600;margin:0 0 4px">Calibration</div>
     <p style="margin:0 0 12px">Calibration measures the round-trip delay between the click playing and your mic hearing it, so hit timing is compared against what you <i>actually</i> heard, not what the app scheduled. Without calibration the <span style="text-decoration:underline;cursor:pointer;color:var(--accent)" onclick="closeSettings();startCalib()">Calibrate</span> hint appears under your results. Recalibrate whenever you change headphones, speakers, or room setup.</p>
@@ -1113,6 +1118,7 @@ async function ensureInit() {
     isInit = true;
     updateMicStatus();
     await populateMicList();
+    await applyAutoRoute(); // labels are unlocked now — pick the right output route
     return true;
   } catch(e) { alert('Mic access required: ' + e.message); return false; }
 }
@@ -3088,6 +3094,9 @@ function isCalibrated() {
 async function handleGo() {
   if (isPlaying) return;
   if (!(await ensureInit())) return;
+  // Re-check the output route right before starting so the session runs with
+  // the correct latency profile (enumerateDevices is a few ms).
+  await applyAutoRoute();
   if (!isCalibrated()) { pendingGo = true; startCalib(); return; }
   startMetro();
 }
@@ -3511,9 +3520,134 @@ function clearMarkers() {
 }
 
 /* ═══════════════════════════════════════════
+   AUTO OUTPUT-ROUTE DETECTION
+   ═══════════════════════════════════════════
+   The web has no AVAudioSession.currentRoute equivalent (that's why native
+   apps get this "for free"). What we CAN observe:
+   - audioinput labels via enumerateDevices (mic permission unlocks them).
+     iOS/Android switch the active mic to a headset when one connects, and
+     headsets carry mics — so the input list mirrors the output route for
+     speaker / BT headphones / wired headsets.
+   - audiooutput labels on desktop Chrome.
+   - audioCtx.outputLatency on Chrome/Firefox: BT sits at 100-300ms, speaker
+     and wired under ~60ms — a language-independent BT tell.
+   Known blind spot: wired headphones WITHOUT a mic expose nothing. Detection
+   is therefore confidence-gated — it only applies unambiguous results and
+   otherwise leaves the current mode alone. A manual mode tap disables auto.
+*/
+var autoRoute = true;     // persisted as tt_autoRoute ('1' default)
+var _lastDetect = null;   // last detection result for the panel UI
+var _detBusy = false;
+
+// BT is tested before wired within a single label: a device named
+// "P47 Wireless Headphones" is BT even though it says "headphones".
+var BT_RX = /airpod|bluetooth|wireless|hands.?free|earbud|\bbuds\b|beats|bose|jabra|shokz|soundcore|\bwh-?10|\bwf-?10|\bjbl\b|powerbeats|momentum|galaxy buds|pixel buds/i;
+var WIRED_RX = /wired|headset.{0,3}mi|headphone|\busb\b|\bjack\b|lightning|type-?c|line.?in|external mi/i;
+var BUILTIN_RX = /built.?in|internal|iphone|ipad|macbook|imac|speakerphone|\bspeakers?\b|\breceiver\b|\bbottom\b|\bfront\b|\bback\b/i;
+
+function classifyAudioLabel(l) {
+  if (!l) return null;
+  if (BT_RX.test(l)) return 'bt';
+  if (WIRED_RX.test(l)) return 'w';
+  if (BUILTIN_RX.test(l)) return 's';
+  return null;
+}
+
+// Returns {mode:'w'|'s'|'bt', conf:'high'|'low', why:string}
+async function detectAudioRoute() {
+  var inputs = [], outputs = [];
+  try {
+    var devs = await navigator.mediaDevices.enumerateDevices();
+    devs.forEach(function(d) {
+      if (!d.label) return;
+      if (d.deviceId === 'communications') return; // Windows duplicate
+      // Generic alias entries ("Default") duplicate a real device — they carry
+      // no route info and must not count as "unknown device present".
+      if (/^default$|^communications$/i.test(d.label.trim())) return;
+      if (d.kind === 'audioinput') inputs.push(d.label);
+      else if (d.kind === 'audiooutput') outputs.push(d.label);
+    });
+  } catch(e) {}
+
+  // 1. Real output info (desktop Chrome lists the default output first)
+  if (outputs.length) {
+    var oc = classifyAudioLabel(outputs[0]);
+    if (oc) return {mode: oc, conf: 'high', why: 'output: ' + outputs[0]};
+  }
+  // 2. Output latency: >90ms is BT territory on every platform that reports it
+  var outLat = (audioCtx && typeof audioCtx.outputLatency === 'number') ? audioCtx.outputLatency : 0;
+  if (outLat > 0.09) return {mode: 'bt', conf: 'high', why: 'output latency ' + Math.round(outLat * 1000) + 'ms'};
+
+  // 3. Input-side route inference with the OS priority the user expects:
+  //    wired beats BT beats built-in (matches how phones route output).
+  var classes = inputs.map(classifyAudioLabel);
+  var hasUnknown = false;
+  for (var i = 0; i < classes.length; i++) if (classes[i] === null) hasUnknown = true;
+  if (classes.indexOf('w') >= 0) return {mode: 'w', conf: 'high', why: 'wired headset mic present'};
+  if (classes.indexOf('bt') >= 0) return {mode: 'bt', conf: 'high', why: 'bluetooth mic present'};
+  if (inputs.length && !hasUnknown && classes.indexOf('s') >= 0) {
+    // Every input is a recognized built-in — nothing external is connected
+    return {mode: 's', conf: 'high', why: 'only built-in mics present'};
+  }
+  // Unrecognized device names (e.g. user-renamed BT gear) — don't guess
+  return {mode: aMode, conf: 'low', why: hasUnknown ? 'unrecognized device name' : 'no device labels'};
+}
+
+async function applyAutoRoute() {
+  if (!autoRoute || !isInit || _detBusy) return;
+  _detBusy = true;
+  try {
+    var det = await detectAudioRoute();
+    _lastDetect = det;
+    if (det.conf === 'high' && det.mode !== aMode) {
+      setMode(det.mode, true);
+      // Brief status note so the switch isn't silent
+      var statusEl = document.getElementById('status');
+      if (statusEl && !isPlaying) {
+        var names = {w: 'Wired', s: 'Speaker', bt: 'Bluetooth'};
+        statusEl.innerHTML = '<span class="s-dot on"></span>Audio → ' + names[det.mode] + ' (auto)';
+        setTimeout(function() { if (!isPlaying) updateMicStatus(); }, 2500);
+      }
+    }
+    updateAutoRouteUI();
+  } catch(e) {}
+  _detBusy = false;
+}
+
+function setAutoRoute(on) {
+  autoRoute = on;
+  localStorage.setItem('tt_autoRoute', on ? '1' : '0');
+  var chk = document.getElementById('autoRouteChk');
+  if (chk) chk.checked = on;
+  updateAutoRouteUI();
+  if (on) applyAutoRoute();
+}
+
+function updateAutoRouteUI() {
+  var el = document.getElementById('autoRouteInfo');
+  if (!el) return;
+  if (!autoRoute) { el.textContent = ''; return; }
+  if (!isInit) { el.textContent = 'detects at start'; return; }
+  if (!_lastDetect) { el.textContent = ''; return; }
+  var names = {w: 'Wired', s: 'Speaker', bt: 'Bluetooth'};
+  el.textContent = _lastDetect.conf === 'high'
+    ? 'detected: ' + names[_lastDetect.mode]
+    : 'unsure — manual';
+}
+
+/* ═══════════════════════════════════════════
    LATENCY & CALIBRATION
    ═══════════════════════════════════════════ */
-function setMode(m) {
+function setMode(m, fromAuto) {
+  // A manual mode tap is an explicit override — turn auto-detection off so
+  // it can't fight the user (it re-enables via the Auto checkbox).
+  if (!fromAuto && autoRoute) {
+    autoRoute = false;
+    localStorage.setItem('tt_autoRoute', '0');
+    var archk = document.getElementById('autoRouteChk');
+    if (archk) archk.checked = false;
+    updateAutoRouteUI();
+  }
   var prevMode = aMode;
   aMode = m;
   localStorage.setItem('tt_aMode', m);
@@ -3584,6 +3718,9 @@ function updateCalThMarker() {
 async function startCalib() {
   if (isPlaying) stopMetro();
   if (!(await ensureInit())) return;
+  // Calibrate against the route that's actually active — otherwise the value
+  // lands under the wrong mode key.
+  await applyAutoRoute();
   if (masterGain) masterGain.gain.setValueAtTime(1, audioCtx.currentTime);
   cSt = 'idle'; cClk = []; cHit = []; cLH = 0; cArmed = true;
   if (cSch) { clearInterval(cSch); cSch = null; }
@@ -4140,13 +4277,20 @@ function adjTSPop(which, d) {
   loadVol();
   loadLat();
   updateAudioIcon();
+  // Auto route detection: on by default, off once the user picks a mode manually
+  autoRoute = localStorage.getItem('tt_autoRoute') !== '0';
+  var arChk = document.getElementById('autoRouteChk');
+  if (arChk) arChk.checked = autoRoute;
+  updateAutoRouteUI();
   // Sync mode buttons in audio panel
   document.getElementById('modeW').className = 'mode-btn' + (aMode === 'w' ? ' active' : '');
   document.getElementById('modeS').className = 'mode-btn' + (aMode === 's' ? ' active' : '');
   document.getElementById('modeBT').className = 'mode-btn' + (aMode === 'bt' ? ' active' : '');
-  // Audio button: tap opens audio settings (mode change happens in the panel)
+  // Audio button: tap opens audio settings (mode change happens in the panel);
+  // refresh the detection readout while we're at it
   document.getElementById('btnAudio').addEventListener('click', function() {
     openSettingsPanel('audio');
+    applyAutoRoute();
   });
   // Restore sound tile settings
   var sPat = localStorage.getItem('tt_sndPat');
@@ -4319,12 +4463,18 @@ function adjTSPop(which, d) {
         }).catch(function() {});
       }
       updateMicStatus();
+      // Headphones may have been (dis)connected while we were backgrounded
+      if (isInit) setTimeout(applyAutoRoute, 400);
     }
   });
-  // Update mic list when devices change (plug/unplug)
+  // Update mic list when devices change (plug/unplug), then re-detect the
+  // output route. Small delay: the OS is often still switching routes when
+  // devicechange fires, and labels/latency read stale for a moment.
   if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
     navigator.mediaDevices.addEventListener('devicechange', function() {
-      if (isInit) populateMicList();
+      if (!isInit) return;
+      populateMicList();
+      setTimeout(applyAutoRoute, 600);
     });
   }
 })();
